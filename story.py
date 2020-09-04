@@ -27,6 +27,7 @@ class Story():
         self.next = args.get('next', 'a#next_chap')
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', ''))
+        self.style = args.get('style', 'white-style.css')
         self.args = args
         self.story = self.init_story()
 
@@ -68,6 +69,8 @@ class Story():
                                    is not None):
                     tag.name = 'h2'
                     tag['class'] = 'chapter'
+                    if self.debug:
+                        print(tag.string)
                 self.story.body.append(tag)
 
     def get_next_url(self, soup):
@@ -95,6 +98,8 @@ class Story():
     def write(self, filename=None):
         if not filename:
             filename = self.filename
+        if '.html' not in filename:
+            filename += '.html'
         with open(filename, 'w') as f:
             f.write(self.story.prettify())
         self.html_file = filename
@@ -109,6 +114,27 @@ class Story():
 
         params = ['--title', self.title, '--linearize-tables']
         subprocess.run(['ebook-convert', from_file, to_file] + params)
+        self.ebook_file = to_file
+
+    def _condition(self, next_url, count, num_chaps):
+        if num_chaps:
+            return next_url and count < num_chaps
+        else:
+            return next_url
+
+    def download_ebook(self, num_chapters=None):
+        s.add_style(self.style)
+
+        count = 0
+        next_url = s.add_chapter(s.initial_url)
+
+        while self._condition(next_url, count, num_chapters):
+            next_url = s.add_chapter(next_url)
+            count += 1
+
+        self.write()
+
+
 
 
 class Email():
