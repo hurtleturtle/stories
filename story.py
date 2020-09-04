@@ -12,6 +12,7 @@ import smtplib
 import mimetypes
 import sys
 import traceback
+from getpass import getpass
 
 
 class Story():
@@ -24,6 +25,7 @@ class Story():
         self.debug = args.get('verbosity', 0)
         self.container = args.get('container', 'div.chapter-content')
         self.next = args.get('next', 'a#next_chap')
+        self.title = args.get('title', 'ebook')
         self.args = args
         self.story = self.init_story()
 
@@ -95,13 +97,42 @@ class Story():
 
 
 class Email():
-    def __init__(self, story, args):
+    def __init__(self, story, title, filepath, passfile=None):
         self.story = story
-        self.args = args
+        self.title = title
+        self.filepath = filepath
+        self.askpass = (passfile is None)
+        self.passfile = passfile
+
+    def load_pass(self):
+        if self.askpass:
+            return getpass('Input password for ' + self.msg['From'] + ': ')
+        else:
+            if os.path.isfile(self.passfile):
+                with open(self.passfile) as f:
+                    return f.read().strip()
+            else:
+                print('Could not retrieve email password.')
+                return False
 
     def create_message(self):
-        self.msg = {'From': 'jono.nicholas@hotmail.co.uk',
-                    'To': 'jono.nicholas_kindle@kindle.com'}
+        self.msg = email.message.EmailMessage()
+        self.msg['From'] = 'jono.nicholas@hotmail.co.uk'
+        self.msg['To'] = 'jono.nicholas_kindle@kindle.com'
+        self.msg['Subject'] = self.title
+        with open(self.filepath, 'rb') as f:
+            self.msg.add_attachment(f.read(), maintype='application',
+                                    subtype='x-mobipocket-ebook',
+                                    filename=self.title)
+
+    def send_message(self):
+        session = smtplib.SMTP('smtp.office365.com')
+        session.ehlo()
+        session.starttls()
+        session.login(self.msg['From'], self.load_pass())
+        session.send_message(self.msg)
+        session.quit()
+        print('Email sent to ' + self.msg['To'])
 
 
 if __name__ == '__main__':
@@ -114,9 +145,10 @@ if __name__ == '__main__':
     s.add_style('black-style.css')
 
     count = 0
+    cmax = 10
     next_url = s.add_chapter(s.initial_url)
 
-    while next_url and count < 10:
+    while next_url and count < cmax:
         next_url = s.add_chapter(next_url)
         count += 1
 
