@@ -89,6 +89,10 @@ class Story():
         style['href'] = os.path.abspath(style_file)
         self.story.head.append(style)
 
+    def write(self, filename):
+        with open(filename, 'w') as f:
+            f.write(self.story.prettify())
+
 
 class Email():
     def __init__(self, story, args):
@@ -116,4 +120,4 @@ if __name__ == '__main__':
         next_url = s.add_chapter(next_url)
         count += 1
 
-    print(s.story.prettify())
+    s.write('s.html')
