@@ -81,6 +81,13 @@ class Story():
         self.process_story_content(soup)
         return self.get_next_url(soup)
 
+    def add_style(self, style_file):
+        style = self.story.new_tag('link')
+        style['rel'] = 'stylesheet'
+        style['type'] = 'text/css'
+        style['href'] = os.path.abspath(style_file)
+        self.story.head.append(style)
+
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
@@ -88,6 +95,8 @@ if __name__ == '__main__':
                'verbosity': 0,
                'container': 'div.chapter-c > p',
                'next': 'a#next_chap'})
+
+    s.add_style('black-style.css')
 
     count = 0
     next_url = s.add_chapter(s.initial_url)
