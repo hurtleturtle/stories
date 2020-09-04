@@ -18,6 +18,11 @@ class Story():
     def __init__(self, args, verbosity=0):
         self.initial_url = args['url']
         self.debug = verbosity
+        self.story = self.init_story()
+
+    def init_story(self, template_file='template.html'):
+        with open(template_file, 'r') as f:
+            return BeautifulSoup(f, features='lxml')
 
     def load_webpage(self, url):
         response = requests.get(url)
