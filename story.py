@@ -71,6 +71,12 @@ class Story():
             print('Could not get next url.')
             return ''
 
+    def add_chapter(self, url):
+        page = self.load_webpage(url)
+        soup = self.load_soup(page)
+        self.process_story_content(soup)
+        return self.get_next_url(soup)
+
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
