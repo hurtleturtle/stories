@@ -26,6 +26,7 @@ class Story():
         self.container = args.get('container', 'div.chapter-content')
         self.next = args.get('next', 'a#next_chap')
         self.title = args.get('title', 'ebook')
+        self.filename = args.get('filename', self.title.replace(' ', ''))
         self.args = args
         self.story = self.init_story()
 
@@ -91,14 +92,27 @@ class Story():
         style['href'] = os.path.abspath(style_file)
         self.story.head.append(style)
 
-    def write(self, filename):
+    def write(self, filename=None):
+        if not filename:
+            filename = self.filename
         with open(filename, 'w') as f:
             f.write(self.story.prettify())
+        self.html_file = filename
+
+    def convert(self, from_file=None, to_file=None):
+        if not from_file:
+            from_file = self.html_file
+        if not to_file:
+            to_file = self.filename
+        if '.mobi' not in to_file[5:]:
+            to_file += '.mobi'
+
+        params = ['--title', self.title, '--linearize-tables']
+        subprocess.run(['ebook-convert', from_file, to_file] + params)
 
 
 class Email():
-    def __init__(self, story, title, filepath, passfile=None):
-        self.story = story
+    def __init__(self, title, filepath, passfile=None):
         self.title = title
         self.filepath = filepath
         self.askpass = (passfile is None)
@@ -132,7 +146,7 @@ class Email():
         session.login(self.msg['From'], self.load_pass())
         session.send_message(self.msg)
         session.quit()
-        print('Email sent to ' + self.msg['To'])
+        print('Email sent to ' + self.msg['To'] + '.')
 
     def send_ebook(self):
         self.create_message()
