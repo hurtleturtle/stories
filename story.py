@@ -14,7 +14,7 @@ import sys
 import traceback
 
 
-class StoryHTML():
+class Story():
     def __init__(self, args, verbosity=0):
         self.initial_url = args['url']
         self.debug = verbosity
@@ -31,3 +31,6 @@ class StoryHTML():
             return response.text
         else:
             return False
+
+    def load_soup(self, page):
+        return BeautifulSoup(page, features='lxml')
