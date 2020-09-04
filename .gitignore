@@ -1,3 +1,7 @@
 bs1.py
-s.html
+*.html
+*.mobi
 .ps
+
+# Do not ignore the following
+!template.html
