@@ -134,6 +134,10 @@ class Email():
         session.quit()
         print('Email sent to ' + self.msg['To'])
 
+    def send_ebook(self):
+        self.create_message()
+        self.send_message()
+
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
