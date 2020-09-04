@@ -134,6 +134,10 @@ class Story():
 
         self.write()
 
+    def send_ebook(self):
+        eml = Email(self.title, self.ebook_file)
+        eml.send_ebook()
+
 
 
 
