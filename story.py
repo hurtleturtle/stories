@@ -9,9 +9,6 @@ import os
 import subprocess
 import email
 import smtplib
-import mimetypes
-import sys
-import traceback
 from getpass import getpass
 
 
