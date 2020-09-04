@@ -24,6 +24,7 @@ class Story():
         self.debug = args.get('verbosity', 0)
         self.container = args.get('container', 'div.chapter-content')
         self.next = args.get('next', 'a#next_chap')
+        self.args = args
         self.story = self.init_story()
 
     def init_story(self, template_file='template.html'):
@@ -87,6 +88,16 @@ class Story():
         style['type'] = 'text/css'
         style['href'] = os.path.abspath(style_file)
         self.story.head.append(style)
+
+
+class Email():
+    def __init__(self, story, args):
+        self.story = story
+        self.args = args
+
+    def create_message(self):
+        self.msg = {'From': 'jono.nicholas@hotmail.co.uk',
+                    'To': 'jono.nicholas_kindle@kindle.com'}
 
 
 if __name__ == '__main__':
