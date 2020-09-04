@@ -35,9 +35,9 @@ class Story():
     def load_webpage(self, url):
         response = requests.get(url)
 
-        if self.debug:
-            print(response.status_code, response.reason)
         if self.debug > 1:
+            print(response.status_code, response.reason)
+        if self.debug > 2:
             print(response.text)
 
         if response.status_code == 200:
@@ -71,10 +71,10 @@ class Story():
                 self.story.body.append(tag)
 
     def get_next_url(self, soup):
-        next_url = soup.select(self.next)
+        next_url = soup.select(self.next)[0].get('href')
 
         if next_url:
-            return self.base_url + next_url[0]['href']
+            return self.base_url + next_url
         else:
             print('Could not get next url.')
             return ''
@@ -136,8 +136,6 @@ class Story():
         eml.send_ebook()
 
 
-
-
 class Email():
     def __init__(self, title, filepath, passfile=None):
         self.title = title
@@ -182,19 +180,12 @@ class Email():
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
-               'god-of-slaughter/chapter-119-the-devil-king-bo-xun.html',
-               'verbosity': 0,
+               'god-of-slaughter/chapter-1-reborn-in-another-world.html',
+               'verbosity': 1,
                'container': 'div.chapter-c > p',
-               'next': 'a#next_chap'})
+               'next': 'a#next_chap',
+               'title': 'God of Slaughter'})
 
-    s.add_style('black-style.css')
-
-    count = 0
-    cmax = 10
-    next_url = s.add_chapter(s.initial_url)
-
-    while next_url and count < cmax:
-        next_url = s.add_chapter(next_url)
-        count += 1
-
-    s.write('s.html')
+    s.download_ebook()
+    s.convert()
+    s.send_ebook()
