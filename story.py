@@ -20,7 +20,7 @@ class Story():
 
         # get base url of site
         parsed_url = urlparse(self.initial_url)
-        self.base_url = parsed_url.scheme + '://' + parsed_url.hostname + '/'
+        self.base_url = parsed_url.scheme + '://' + parsed_url.hostname
         self.debug = args.get('verbosity', 0)
         self.container = args.get('container', 'div.chapter-content')
         self.next = args.get('next', 'a#next_chap')
@@ -60,6 +60,10 @@ class Story():
             print('Container not found.')
         else:
             for tag in filtered:
+                if tag.string and (re.search(r'Chapter\s+\d+', tag.text)
+                                   is not None):
+                    tag.name = 'h2'
+                    tag['class'] = 'chapter'
                 self.story.body.append(tag)
 
     def get_next_url(self, soup):
@@ -81,12 +85,15 @@ class Story():
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
                'god-of-slaughter/chapter-119-the-devil-king-bo-xun.html',
-               'verbosity': 1,
+               'verbosity': 0,
                'container': 'div.chapter-c > p',
                'next': 'a#next_chap'})
-    page = s.load_webpage(s.initial_url)
-    soup = s.load_soup(page)
-    s.process_story_content(soup)
-    n = s.get_next_url(soup)
+
+    count = 0
+    next_url = s.add_chapter(s.initial_url)
+
+    while next_url and count < 10:
+        next_url = s.add_chapter(next_url)
+        count += 1
+
     print(s.story.prettify())
-    print(n)
