@@ -62,8 +62,8 @@ class Story():
             print('Container not found.')
         else:
             for tag in filtered:
-                if tag.string and (re.search(r'Chapter\s+\d+', tag.text)
-                                   is not None):
+                if tag.string and (re.search(r'Chapter\s+\d+', tag.text,
+                                   re.IGNORECASE) is not None):
                     tag.name = 'h2'
                     tag['class'] = 'chapter'
                     if self.debug:
