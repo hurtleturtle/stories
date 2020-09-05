@@ -162,7 +162,7 @@ class Email():
         with open(self.filepath, 'rb') as f:
             self.msg.add_attachment(f.read(), maintype='application',
                                     subtype='x-mobipocket-ebook',
-                                    filename=self.title)
+                                    filename=self.filepath)
 
     def send_message(self):
         session = smtplib.SMTP('smtp.office365.com')
