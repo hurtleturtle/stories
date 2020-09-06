@@ -62,13 +62,18 @@ class Story():
             print('Container not found.')
         else:
             for tag in filtered:
-                if tag.string and (re.search(r'Chapter\s+\d+', tag.text,
-                                   re.IGNORECASE) is not None):
-                    tag.name = 'h2'
-                    tag['class'] = 'chapter'
-                    if self.debug:
-                        print(tag.string)
+                tag = self.add_chapter_title(tag)
                 self.story.body.append(tag)
+
+    def add_chapter_title(self, tag):
+        if tag.string and (re.search(r'Chapter\s+\d+', tag.text,
+                           re.IGNORECASE) is not None):
+            tag.name = 'h2'
+            tag['class'] = 'chapter'
+            if self.debug:
+                print(tag.string)
+
+            return tag
 
     def get_next_url(self, soup):
         next_url = soup.select(self.next)[0].get('href')
