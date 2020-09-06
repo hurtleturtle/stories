@@ -2,7 +2,7 @@
 
 import requests
 import re
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from urllib.parse import urlparse
 from argparse import ArgumentParser
 import os
@@ -56,24 +56,41 @@ class Story():
 
         # filter chapter content
         filtered = soup.select(container)
+        title_added = False
+
+        # add div wrapper to each chapter
+        if filtered[0].name != 'div':
+            chapter = soup.new_tag('div', attrs={'class': 'chapter'})
 
         # add chapter content to story
         if len(filtered) < 1:
             print('Container not found.')
         else:
             for tag in filtered:
-                tag = self.add_chapter_title(tag)
-                self.story.body.append(tag)
+                if not title_added:
+                    title_added = self.add_chapter_title(tag)
+                chapter.append(tag)
+
+            if not title_added:
+                heading = soup.new_tag('h2', attrs={'class': 'chapter'})
+                heading.string = NavigableString('Chapter ' +
+                                                 self.current_chapter + 1)
+                self.current_chapter += 1
+                chapter.insert(0, heading)
+
+            self.story.body.append(chapter)
 
     def add_chapter_title(self, tag):
-        if tag.string and (re.search(r'Chapter\s+\d+', tag.text,
+        if tag.string and (re.search(r'Chapter\s+\d+', tag.string,
                            re.IGNORECASE) is not None):
+            title = re.search(r'Chapter\s+(\d+)', tag.string, re.IGNORECASE)
+            self.current_chapter = int(title.group(1))
             tag.name = 'h2'
             tag['class'] = 'chapter'
             if self.debug:
                 print(tag.string)
 
-            return tag
+            return True
 
     def get_next_url(self, soup):
         next_url = soup.select(self.next)[0].get('href')
