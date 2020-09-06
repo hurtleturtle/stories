@@ -84,16 +84,16 @@ class Story():
             self.story.body.append(chapter)
 
     def add_chapter_title(self, tag):
-        if tag.string and (re.search(r'Chapter\s+\d+', tag.string,
-                           re.IGNORECASE) is not None):
+        if tag.string:
             title = re.search(r'Chapter\s+(\d+)', tag.string, re.IGNORECASE)
-            self.current_chapter = int(title.group(1))
-            tag.name = 'h2'
-            tag['class'] = 'chapter'
-            if self.debug:
-                print(tag.string)
+            if title:
+                self.current_chapter = int(title.group(1))
+                tag.name = 'h2'
+                tag['class'] = 'chapter'
+                if self.debug:
+                    print(tag.string)
 
-            return True
+                return True
 
     def get_next_url(self, soup):
         next_url = soup.select(self.next)[0].get('href')
