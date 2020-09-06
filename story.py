@@ -60,7 +60,8 @@ class Story():
 
         # add div wrapper to each chapter
         if filtered[0].name != 'div':
-            chapter = soup.new_tag('div', attrs={'class': 'chapter'})
+            chapter = soup.new_tag('div')
+            chapter['class'] = 'chapter'
 
         # add chapter content to story
         if len(filtered) < 1:
@@ -72,11 +73,14 @@ class Story():
                 chapter.append(tag)
 
             if not title_added:
-                heading = soup.new_tag('h2', attrs={'class': 'chapter'})
+                heading = soup.new_tag('h2')
+                heading['class'] = 'chapter-heading'
                 heading.string = NavigableString('Chapter ' +
                                                  str(self.current_chapter + 1))
                 self.current_chapter += 1
                 chapter.insert(0, heading)
+                if self.debug:
+                    print(heading.string)
 
             if self.debug > 1:
                 print(chapter.prettify())
@@ -89,7 +93,7 @@ class Story():
             if title:
                 self.current_chapter = int(title.group(1))
                 tag.name = 'h2'
-                tag['class'] = 'chapter'
+                tag['class'] = 'chapter-heading'
                 if self.debug:
                     print(tag.string)
 
@@ -211,11 +215,11 @@ class Email():
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
                'god-of-slaughter/chapter-237-an-extraordinary-treasure.html',
-               'verbosity': 2,
-               'container': 'div.chapter-c > p',
+               'verbosity': 1,
+               'container': 'div.chapter-c p',
                'next': 'a#next_chap',
                'title': 'God of Slaughter'})
 
     s.download_ebook(num_chapters=10, filename='test.html')
-    s.convert()
-    s.send_ebook()
+    # s.convert()
+    # s.send_ebook()
