@@ -221,5 +221,5 @@ if __name__ == '__main__':
                'title': 'God of Slaughter'})
 
     s.download_ebook(num_chapters=10, filename='test.html')
-    # s.convert()
-    # s.send_ebook()
+    s.convert()
+    s.send_ebook()
