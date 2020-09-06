@@ -154,8 +154,12 @@ class Story():
         else:
             return next_url
 
-    def download_ebook(self, num_chapters=None, filename=None):
+    def download_ebook(self, num_chapters=None, filename=None,
+                       script_files=None):
         self.add_style(self.style)
+        if script_files:
+            for script in script_files:
+                self.add_script(script)
 
         count = 0
         next_url = self.add_chapter(s.initial_url)
