@@ -74,9 +74,12 @@ class Story():
             if not title_added:
                 heading = soup.new_tag('h2', attrs={'class': 'chapter'})
                 heading.string = NavigableString('Chapter ' +
-                                                 self.current_chapter + 1)
+                                                 str(self.current_chapter + 1))
                 self.current_chapter += 1
                 chapter.insert(0, heading)
+
+            if self.debug > 1:
+                print(chapter.prettify())
 
             self.story.body.append(chapter)
 
@@ -141,7 +144,7 @@ class Story():
         else:
             return next_url
 
-    def download_ebook(self, num_chapters=None):
+    def download_ebook(self, num_chapters=None, filename=None):
         s.add_style(self.style)
 
         count = 0
@@ -151,7 +154,7 @@ class Story():
             next_url = s.add_chapter(next_url)
             count += 1
 
-        self.write()
+        self.write(filename)
 
     def send_ebook(self, title=None, filepath=None, pwfile=None):
         if not title:
@@ -207,12 +210,12 @@ class Email():
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
-               'god-of-slaughter/chapter-1-reborn-in-another-world.html',
-               'verbosity': 1,
+               'god-of-slaughter/chapter-237-an-extraordinary-treasure.html',
+               'verbosity': 2,
                'container': 'div.chapter-c > p',
                'next': 'a#next_chap',
                'title': 'God of Slaughter'})
 
-    s.download_ebook()
+    s.download_ebook(num_chapters=10, filename='test.html')
     s.convert()
     s.send_ebook()
