@@ -155,13 +155,13 @@ class Story():
             return next_url
 
     def download_ebook(self, num_chapters=None, filename=None):
-        s.add_style(self.style)
+        self.add_style(self.style)
 
         count = 0
-        next_url = s.add_chapter(s.initial_url)
+        next_url = self.add_chapter(s.initial_url)
 
         while self._condition(next_url, count, num_chapters):
-            next_url = s.add_chapter(next_url)
+            next_url = self.add_chapter(next_url)
             count += 1
 
         self.write(filename)
