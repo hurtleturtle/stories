@@ -121,6 +121,12 @@ class Story():
         style['href'] = os.path.abspath(style_file)
         self.story.head.append(style)
 
+    def add_script(self, script_file):
+        script = self.story.new_tag('script')
+        script['type'] = 'text/javascript'
+        script['src'] = script_file
+        self.story.head.append(script)
+
     def write(self, filename=None):
         if not filename:
             filename = self.filename
