@@ -2,6 +2,7 @@ bs1.py
 *.html
 *.mobi
 .ps
+.tern*
 
 # Do not ignore the following
 !template.html
