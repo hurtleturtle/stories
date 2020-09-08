@@ -1,7 +1,9 @@
-var t = document.createElement('div')
-t.setAttribute('class', 'tracker')
-t.innerHTML = '0%'
-document.body.appendChild(t)
+window.onload = function() {
+  var t = document.createElement('div')
+  t.setAttribute('id', 'tracker')
+  t.innerHTML = '0%'
+  document.body.appendChild(t)
+}
 
 function get_scroll() {
 	var h = document.documentElement,
@@ -14,6 +16,6 @@ function get_scroll() {
 }
 
 function track() {
-	var tracker = document.getElementsByClassName('tracker')[0]
+	var tracker = document.getElementById('tracker')
 	tracker.innerHTML = get_scroll()
 }
