@@ -10,15 +10,15 @@ h2 {
   text-align: center;
 }
 
-.tracker {
+#tracker {
 	z-index: 2;
     color: grey;
     border: 1px solid grey;
     border-radius: 5px;
     text-align: right;
     position: fixed;
-    right: 5%;
-    bottom: 2%;
+    right: 10px;
+    bottom: 10px;
     padding: 5px;
-    width: 50px;
+    width: 45px;
 }
