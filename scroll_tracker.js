@@ -1,7 +1,7 @@
 window.onload = function() {
   var t = document.createElement('div')
   t.setAttribute('id', 'tracker')
-  t.innerHTML = '0%'
+  t.innerHTML = get_scroll()
   document.body.appendChild(t)
 }
 
