@@ -8,11 +8,11 @@ window.onload = function() {
 function get_scroll() {
 	var h = document.documentElement,
     	b = document.body,
-        t = 'scrollTop',
-        i = 'scrollHeight';
+      t = 'scrollTop',
+      i = 'scrollHeight';
 
-    var pc = (h[t] || b[t]) / ((h[i] || b[i]) - h.clientHeight)
-    return Math.round(pc * 100, 2) + "%"
+  var pc = (h[t] || b[t]) / ((h[i] || b[i]) - h.clientHeight)
+  return Math.round(pc * 100, 2) + "%"
 }
 
 function track() {
