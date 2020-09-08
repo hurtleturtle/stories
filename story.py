@@ -123,7 +123,6 @@ class Story():
 
     def add_script(self, script_file):
         script = self.story.new_tag('script')
-        script['type'] = 'text/javascript'
         script['src'] = script_file
         self.story.head.append(script)
 
