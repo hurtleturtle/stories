@@ -27,6 +27,7 @@ class Story():
         self.style = args.get('style', 'white-style.css')
         self.args = args
         self.story = self.init_story()
+        self.current_chapter = 0
 
     def init_story(self, template_file='template.html'):
         with open(template_file, 'r') as f:
@@ -75,9 +76,9 @@ class Story():
             if not title_added:
                 heading = soup.new_tag('h2')
                 heading['class'] = 'chapter-heading'
-                heading.string = NavigableString('Chapter ' +
-                                                 str(self.current_chapter + 1))
                 self.current_chapter += 1
+                heading.string = NavigableString('Chapter ' +
+                                                 str(self.current_chapter))
                 chapter.insert(0, heading)
                 if self.debug:
                     print(heading.string)
