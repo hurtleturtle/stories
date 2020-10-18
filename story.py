@@ -50,7 +50,7 @@ class Story():
     def load_soup(self, page):
         return BeautifulSoup(page, features='lxml')
 
-    def process_story_content(self, soup, container=None):
+    def process_story_content(self, soup, container=None, detect_title=False):
         if not container:
             container = self.container
 
@@ -59,17 +59,17 @@ class Story():
         title_added = False
 
         # add div wrapper to each chapter
-        if filtered[0].name != 'div':
-            chapter = soup.new_tag('div')
-            chapter['class'] = 'chapter'
-
         # add chapter content to story
         if len(filtered) < 1:
             print('Container not found.')
         else:
+            if filtered[0].name != 'div':
+                chapter = soup.new_tag('div')
+                chapter['class'] = 'chp'
+
             for tag in filtered:
-                if not title_added:
-                    title_added = self.add_chapter_title(tag)
+                if not title_added and detect_title:
+                    title_added = self.detect_chapter_title(tag)
                 chapter.append(tag)
 
             if not title_added:
@@ -87,7 +87,7 @@ class Story():
 
             self.story.body.append(chapter)
 
-    def add_chapter_title(self, tag):
+    def detect_chapter_title(self, tag):
         if tag.string:
             title = re.search(r'Chapter\s+(\d+)', tag.string, re.IGNORECASE)
             if title:
@@ -228,12 +228,12 @@ class Email():
 
 if __name__ == '__main__':
     s = Story({'url': 'https://novelfull.com/' +
-               'god-of-slaughter/chapter-237-an-extraordinary-treasure.html',
+               'i-alone-level-up/chapter-1.html',
                'verbosity': 1,
-               'container': 'div.chapter-c p',
+               'container': 'div.chapter-c p, div.chapter-c li',
                'next': 'a#next_chap',
-               'title': 'God of Slaughter'})
+               'title': 'I Alone Level Up'})
 
-    s.download_ebook(num_chapters=10, filename='test.html')
+    s.download_ebook()
     s.convert()
     s.send_ebook()
