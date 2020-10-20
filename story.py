@@ -24,6 +24,7 @@ class Story():
         self.next = args.get('next', 'a#next_chap')
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', ''))
+        self.html_file = self.filename + '.html'
         self.style = args.get('style', 'white-style.css')
         self.args = args
         self.story = self.init_story()
@@ -238,6 +239,6 @@ if __name__ == '__main__':
                'next': 'li.next a',
                'title': 'The Second Coming of Gluttony (Part 1)'})
 
-    s.download_ebook()
-    # s.convert()
-    # s.send_ebook()
+    # s.download_ebook()
+    s.convert()
+    s.send_ebook()
