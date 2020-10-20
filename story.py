@@ -34,7 +34,8 @@ class Story():
             return BeautifulSoup(f, features='lxml')
 
     def load_webpage(self, url):
-        response = requests.get(url)
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:24.0) Gecko/20100101 Firefox/24.0'}
+        response = requests.get(url, headers=headers)
 
         if self.debug > 1:
             print(response.status_code, response.reason)
@@ -170,7 +171,10 @@ class Story():
         next_url = self.add_chapter(s.initial_url)
 
         while self._condition(next_url, count, num_chapters):
-            next_url = self.add_chapter(next_url)
+            try:
+                next_url = self.add_chapter(next_url)
+            except IndexError:
+                next_url = False
             count += 1
 
         self.write(filename)
@@ -228,13 +232,12 @@ class Email():
 
 
 if __name__ == '__main__':
-    s = Story({'url': 'https://novelfull.com/' +
-               'i-alone-level-up/chapter-1.html',
+    s = Story({'url': 'https://www.wuxiaworld.com/novel/the-second-coming-of-gluttony/scog-chapter-1',
                'verbosity': 1,
-               'container': 'div.chapter-c p, div.chapter-c li',
-               'next': 'a#next_chap',
-               'title': 'I Alone Level Up'})
+               'container': 'div#chapter-content p',
+               'next': 'li.next a',
+               'title': 'The Second Coming of Gluttony (Part 1)'})
 
     s.download_ebook()
-    s.convert()
-    s.send_ebook()
+    # s.convert()
+    # s.send_ebook()
