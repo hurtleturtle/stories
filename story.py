@@ -240,37 +240,43 @@ class Email():
         self.send_message()
 
 
-def get_args():
-    parser = ArgumentParser()
-    parser.add_argument('-u', '--url', help='URL of first chapter')
-    parser.add_argument('-v', dest='verbosity', action='count', default=0,
-                        help='Specify verbose output')
-    parser.add_argument('-i', '--input-template',
-                        help='Specify template of arguments')
+class Args():
+    def __init__(self):
+        self.args = self.get_args()
+        if self.args.input_template:
+            story_args = self.get_template(args.input_template)
 
-    args = parser.parse_args()
+    def get_args(self):
+        parser = ArgumentParser()
+        parser.add_argument('-u', '--url', help='URL of first chapter')
+        parser.add_argument('-v', dest='verbosity', action='count', default=0,
+                            help='Specify verbose output')
+        parser.add_argument('-i', '--input-template',
+                            help='Specify template of arguments')
 
-    if not args.url:
-        exit('Please specify a URL for the first chapter.')
+        args = parser.parse_args()
 
-    return args
+        if not args.url:
+            exit('Please specify a URL for the first chapter.')
 
+        return args
 
-def get_template(filename):
-    template_dir = os.path.join(os.path.dirname(sys.argv[0]), 'templates')
+    def get_template(self, filename):
+        template_dir = os.path.join(os.path.dirname(sys.argv[0]), 'templates')
 
-    def check_files(files=[]):
-        for f in files:
-            if os.path.isfile(f):
-                return f
+        def check_files(files=[]):
+            for f in files:
+                if os.path.isfile(f):
+                    return f
 
-        return ''
+            return ''
 
-    template = check_files([filename, os.path.join(template_dir, filename),
-                            os.path.join(template_dir, filename + '.yml'),
-                            os.path.join(template_dir, filename + '.yaml')])
+        files = [filename, os.path.join(template_dir, filename),
+                 os.path.join(template_dir, filename + '.yml'),
+                 os.path.join(template_dir, filename + '.yaml')]
+        template = check_files(files)
 
-    return yaml.full_load(template) if template else None
+        return yaml.full_load(template) if template else None
 
 
 if __name__ == '__main__':
@@ -278,9 +284,7 @@ if __name__ == '__main__':
     if args.input_template:
         story_args = get_template(args.input_template)
     else:
-        story_args = {'url': 'https://www.wuxiaworld.com/novel/' +
-                             'warlock-of-the-magus-world/wmw-chapter-1',
-                      'verbosity': 1,
+        story_args = {'verbosity': 1,
                       'container': 'div#chapter-content p',
                       'next': 'li.next a',
                       'title': 'Warlock of the Magus World'}
