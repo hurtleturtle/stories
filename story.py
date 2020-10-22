@@ -94,7 +94,7 @@ class Story():
                 if self.debug:
                     print(heading.string)
 
-            if self.debug > 1:
+            if self.debug > 2:
                 print(chapter.prettify())
 
             self.story.body.append(chapter)
@@ -112,7 +112,13 @@ class Story():
                 return True
 
     def get_next_url(self, soup):
-        next_url = soup.select(self.next)[0].get('href')
+        try:
+            next_url = soup.select(self.next)[0].get('href')
+        except IndexError:
+            print(f'Could not locate {self.next}.')
+            if self.debug > 1:
+                print('\n' + soup.prettify() + '\n')
+            return ''
 
         if next_url:
             return self.base_url + next_url
@@ -322,6 +328,9 @@ class Args():
 if __name__ == '__main__':
     cmdargs = Args()
     s = Story(cmdargs.story)
+
+    if cmdargs.story['verbosity'] > 1:
+        print(cmdargs.__dict__)
 
     if not cmdargs.extras['no_download']:
         s.download_ebook()
