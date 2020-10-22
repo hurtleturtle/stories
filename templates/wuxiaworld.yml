@@ -1,0 +1,3 @@
+verbosity: 1
+container: div#chapter-content p
+next: li.next a
