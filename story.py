@@ -179,12 +179,15 @@ class Story():
         count = 0
         next_url = self.add_chapter(s.initial_url)
 
-        while self._condition(next_url, count, num_chapters):
-            try:
-                next_url = self.add_chapter(next_url)
-            except IndexError:
-                next_url = False
-            count += 1
+        try:
+            while self._condition(next_url, count, num_chapters):
+                try:
+                    next_url = self.add_chapter(next_url)
+                except IndexError:
+                    next_url = False
+                count += 1
+        except KeyboardInterrupt:
+            pass
 
         self.write(filename)
 
@@ -242,17 +245,47 @@ class Email():
 
 class Args():
     def __init__(self):
-        self.args = self.get_args()
-        if self.args.input_template:
-            story_args = self.get_template(args.input_template)
+        args = self.get_args()
+        self.story = self.load_story_args(args)
+        self.extras = {}
+
+        for key, val in args.__dict__.items():
+            if key not in self.story:
+                self.extras[key] = val
+
+    def load_story_args(self, args={}):
+        sargs = args.__dict__.copy()
+        for key, item in self.get_template(sargs['input_template']).items():
+            if not sargs[key]:
+                sargs[key] = item
+
+        extras = ['input_template', 'no_download', 'no_convert', 'no_email']
+        for e in extras:
+            del sargs[e]
+
+        return sargs
 
     def get_args(self):
         parser = ArgumentParser()
-        parser.add_argument('-u', '--url', help='URL of first chapter')
-        parser.add_argument('-v', dest='verbosity', action='count', default=0,
-                            help='Specify verbose output')
-        parser.add_argument('-i', '--input-template',
-                            help='Specify template of arguments')
+        story = parser.add_argument_group('story')
+        debug = parser.add_argument_group('debug')
+        actions = parser.add_argument_group('actions')
+        story.add_argument('-u', '--url', help='URL of first chapter')
+        story.add_argument('-i', '--input-template',
+                           help='Specify template of arguments')
+        story.add_argument('-t', '--title', help='Ebook title', default='book')
+        story.add_argument('-c', '--container', help='Chapter container CSS')
+        story.add_argument('-n', '--next', help='Next chapter CSS')
+
+        debug.add_argument('-v', dest='verbosity', action='count', default=0,
+                           help='Specify verbose output')
+
+        actions.add_argument('--no-download', action='store_true',
+                             default=False, help='Do not download ebook')
+        actions.add_argument('--no-convert', action='store_true',
+                             default=False, help='Do not convert html to mobi')
+        actions.add_argument('--no-email', action='store_true',
+                             default=False, help='Do not send to kindle')
 
         args = parser.parse_args()
 
@@ -276,21 +309,23 @@ class Args():
                  os.path.join(template_dir, filename + '.yaml')]
         template = check_files(files)
 
-        return yaml.full_load(template) if template else None
+        try:
+            with open(template, 'r') as f:
+                tmp = yaml.full_load(f)
+        except Exception as e:
+            print(e)
+            exit(f'Failed to load template values from {template}.')
+
+        return tmp
 
 
 if __name__ == '__main__':
-    args = get_args()
-    if args.input_template:
-        story_args = get_template(args.input_template)
-    else:
-        story_args = {'verbosity': 1,
-                      'container': 'div#chapter-content p',
-                      'next': 'li.next a',
-                      'title': 'Warlock of the Magus World'}
+    cmdargs = Args()
+    s = Story(cmdargs.story)
 
-    s = Story(story_args)
-
-    s.download_ebook()
-    s.convert()
-    s.send_ebook()
+    if not cmdargs.extras['no_download']:
+        s.download_ebook()
+    if not cmdargs.extras.no_convert:
+        s.convert()
+    if not cmdargs.extras.no_email:
+        s.send_ebook()
