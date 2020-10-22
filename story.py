@@ -325,7 +325,7 @@ if __name__ == '__main__':
 
     if not cmdargs.extras['no_download']:
         s.download_ebook()
-    if not cmdargs.extras.no_convert:
+    if not cmdargs.extras['no_convert']:
         s.convert()
-    if not cmdargs.extras.no_email:
+    if not cmdargs.extras['no_email']:
         s.send_ebook()
