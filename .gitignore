@@ -3,6 +3,8 @@ bs1.py
 *.mobi
 .ps
 .tern*
+add_ids.py
+remove_chap.py
 
 # Do not ignore the following
 !template.html
