@@ -239,9 +239,26 @@ class Email():
         self.send_message()
 
 
+def get_args():
+    parser = ArgumentParser()
+    parser.add_argument('-u', '--url', help='URL of first chapter')
+    parser.add_argument('-v', dest='verbosity', action='count', default=0,
+                        help='Specify verbose output')
+    parser.add_argument('-i', '--input-template',
+                        help='Specify template of arguments')
+
+    args = parser.parse_args()
+
+    if not args.url:
+        exit('Please specify a URL for the first chapter.')
+
+    return args
+
+
 if __name__ == '__main__':
-    s = Story({'url': 'https://www.wuxiaworld.com/novel/\
-                       warlock-of-the-magus-world/wmw-chapter-1',
+    args = get_args()
+    s = Story({'url': 'https://www.wuxiaworld.com/novel/' +
+                      'warlock-of-the-magus-world/wmw-chapter-1',
                'verbosity': 1,
                'container': 'div#chapter-content p',
                'next': 'li.next a',
