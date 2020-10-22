@@ -11,6 +11,7 @@ import subprocess
 import email
 import smtplib
 from getpass import getpass
+import yaml
 
 
 class Story():
@@ -255,14 +256,36 @@ def get_args():
     return args
 
 
+def get_template(filename):
+    template_dir = os.path.join(os.path.dirname(sys.argv[0]), 'templates')
+
+    def check_files(files=[]):
+        for f in files:
+            if os.path.isfile(f):
+                return f
+
+        return ''
+
+    template = check_files([filename, os.path.join(template_dir, filename),
+                            os.path.join(template_dir, filename + '.yml'),
+                            os.path.join(template_dir, filename + '.yaml')])
+
+    return yaml.full_load(template) if template else None
+
+
 if __name__ == '__main__':
     args = get_args()
-    s = Story({'url': 'https://www.wuxiaworld.com/novel/' +
-                      'warlock-of-the-magus-world/wmw-chapter-1',
-               'verbosity': 1,
-               'container': 'div#chapter-content p',
-               'next': 'li.next a',
-               'title': 'Warlock of the Magus World'})
+    if args.input_template:
+        story_args = get_template(args.input_template)
+    else:
+        story_args = {'url': 'https://www.wuxiaworld.com/novel/' +
+                             'warlock-of-the-magus-world/wmw-chapter-1',
+                      'verbosity': 1,
+                      'container': 'div#chapter-content p',
+                      'next': 'li.next a',
+                      'title': 'Warlock of the Magus World'}
+
+    s = Story(story_args)
 
     s.download_ebook()
     s.convert()
