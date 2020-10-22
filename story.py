@@ -30,6 +30,8 @@ class Story():
         self.ebook_folder = os.path.join(self.cwd, 'mobi')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
+        self.ebook_file = os.path.join(self.ebook_folder,
+                                       self.filename + '.mobi')
         self.style = args.get('style', 'white-style.css')
         self.args = args
         self.story = self.init_story()
@@ -147,7 +149,7 @@ class Story():
         if not from_file:
             from_file = self.html_file
         if not to_file:
-            to_file = self.filename
+            to_file = self.ebook_file
         if '.mobi' not in to_file[5:]:
             to_file += '.mobi'
 
