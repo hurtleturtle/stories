@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup, NavigableString
 from urllib.parse import urlparse
 from argparse import ArgumentParser
 import os
+import sys
 import subprocess
 import email
 import smtplib
@@ -24,7 +25,11 @@ class Story():
         self.next = args.get('next', 'a#next_chap')
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', ''))
-        self.html_file = self.filename + '.html'
+        self.cwd = os.path.dirname(sys.argv[0])
+        self.html_folder = os.path.join(self.cwd, 'html')
+        self.ebook_folder = os.path.join(self.cwd, 'mobi')
+        self.html_file = os.path.join(self.html_folder,
+                                      self.filename + '.html')
         self.style = args.get('style', 'white-style.css')
         self.args = args
         self.story = self.init_story()
@@ -35,7 +40,8 @@ class Story():
             return BeautifulSoup(f, features='lxml')
 
     def load_webpage(self, url):
-        headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; rv:24.0) Gecko/20100101 Firefox/24.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; \
+                    rv:24.0) Gecko/20100101 Firefox/24.0'}
         response = requests.get(url, headers=headers)
 
         if self.debug > 1:
@@ -130,13 +136,12 @@ class Story():
         self.story.head.append(script)
 
     def write(self, filename=None):
-        if not filename:
-            filename = self.filename
-        if '.html' not in filename:
-            filename += '.html'
-        with open(filename, 'w') as f:
+        if filename:
+            self.html_file = os.path.join(self.html_folder, self.filename)
+        if '.html' not in self.html_file:
+            self.html_file += '.html'
+        with open(self.html_file, 'w') as f:
             f.write(self.story.prettify())
-        self.html_file = filename
 
     def convert(self, from_file=None, to_file=None):
         if not from_file:
@@ -233,12 +238,13 @@ class Email():
 
 
 if __name__ == '__main__':
-    s = Story({'url': 'https://www.wuxiaworld.com/novel/the-second-coming-of-gluttony/scog-chapter-1',
+    s = Story({'url': 'https://www.wuxiaworld.com/novel/\
+                       warlock-of-the-magus-world/wmw-chapter-1',
                'verbosity': 1,
                'container': 'div#chapter-content p',
                'next': 'li.next a',
-               'title': 'The Second Coming of Gluttony (Part 1)'})
+               'title': 'Warlock of the Magus World'})
 
-    # s.download_ebook()
+    s.download_ebook()
     s.convert()
     s.send_ebook()
