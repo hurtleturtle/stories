@@ -1,0 +1,5 @@
+verbosity: 1
+container: div#chr-content p
+next: a#next_chap
+detect_title: div#chr-content > p > span
+style: white-style-browser.css
