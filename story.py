@@ -106,7 +106,7 @@ class Story():
         heading.string = NavigableString(chap_title)
 
         if self.debug:
-            print(heading)
+            print(chap_title)
 
         return heading
 
