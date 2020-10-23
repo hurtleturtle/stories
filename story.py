@@ -37,6 +37,7 @@ class Story():
                                        self.filename + '.mobi')
         self.style = os.path.join(self.style_folder,
                                   args.get('style', 'white-style.css'))
+        self.scripts = self.get_scripts(args.get('scripts', ''))
         self.args = args
         self.story = self.init_story()
         self.current_chapter = 0
@@ -140,6 +141,12 @@ class Story():
         style['href'] = os.path.abspath(style_file)
         self.story.head.append(style)
 
+    def get_scripts(self, scripts):
+        if isinstance(scripts, 'list'):
+            return scripts
+        else:
+            return scripts.split(',')
+
     def add_script(self, script_file):
         script = self.story.new_tag('script')
         script['src'] = script_file
@@ -172,11 +179,16 @@ class Story():
             return next_url
 
     def download_ebook(self, num_chapters=None, filename=None,
-                       script_files=None, html_attrs=None):
+                       html_attrs=None):
         self.add_style(self.style)
-        if script_files:
-            for script in script_files:
-                self.add_script(script)
+        if self.scripts:
+            for script in self.scripts:
+                try:
+                    self.add_script(script)
+                except Exception as e:
+                    if self.debug:
+                        print(e)
+                    print(f'Could not add {script}.')
 
         if html_attrs:
             for element in html_attrs:
