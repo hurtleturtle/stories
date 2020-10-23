@@ -42,6 +42,9 @@ class Story():
         self.story = self.init_story()
         self.current_chapter = 0
 
+        if self.debug > 1:
+            print(args)
+
     def init_story(self, template_file='template.html'):
         with open(template_file, 'r') as f:
             return BeautifulSoup(f, features='lxml')
@@ -142,14 +145,18 @@ class Story():
         self.story.head.append(style)
 
     def get_scripts(self, scripts):
-        if isinstance(scripts, 'list'):
-            return scripts
-        else:
-            return scripts.split(',')
+        if self.debug > 1:
+            print(scripts)
+        if not isinstance(scripts, list):
+            scripts = scripts.split(',')
+
+        return [os.path.abspath(s) for s in scripts]
 
     def add_script(self, script_file):
         script = self.story.new_tag('script')
         script['src'] = script_file
+        if self.debug > 1:
+            print(f'Adding {script}')
         self.story.head.append(script)
 
     def write(self, filename=None):
@@ -276,7 +283,7 @@ class Args(ArgumentParser):
     def load_story_args(self, args={}):
         sargs = args.__dict__.copy()
         for key, item in self.get_template(sargs['input_template']).items():
-            if not sargs[key]:
+            if not sargs.get(key):
                 sargs[key] = item
 
         extras = ['input_template', 'no_download', 'no_convert', 'no_email']
