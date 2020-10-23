@@ -3,6 +3,7 @@ window.onload = function() {
   t.setAttribute('id', 'tracker')
   t.innerHTML = get_scroll()
   document.body.appendChild(t)
+  document.addEventListener('scroll', track)
 }
 
 function get_scroll() {
