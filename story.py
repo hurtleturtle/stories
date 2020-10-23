@@ -30,11 +30,13 @@ class Story():
         self.cwd = os.path.dirname(sys.argv[0])
         self.html_folder = os.path.join(self.cwd, 'html')
         self.ebook_folder = os.path.join(self.cwd, 'mobi')
+        self.style_folder = os.path.join(self.cwd, 'styles')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
         self.ebook_file = os.path.join(self.ebook_folder,
                                        self.filename + '.mobi')
-        self.style = args.get('style', 'white-style.css')
+        self.style = os.path.join(self.style_folder,
+                                  args.get('style', 'white-style.css'))
         self.args = args
         self.story = self.init_story()
         self.current_chapter = 0
