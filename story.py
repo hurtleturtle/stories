@@ -75,9 +75,8 @@ class Story():
         if len(filtered) < 1:
             print('Container not found.')
         else:
-            if filtered[0].name != 'div':
-                chapter = soup.new_tag('div')
-                chapter['class'] = 'chp'
+            chapter = soup.new_tag('div')
+            chapter['class'] = 'chp'
 
             for tag in filtered:
                 if not title_added and detect_title:
