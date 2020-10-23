@@ -333,7 +333,7 @@ if __name__ == '__main__':
     if cmdargs.story['verbosity'] > 1:
         print(cmdargs.__dict__)
 
-    if not cmdargs.extraas['no_download']:
+    if not cmdargs.extras['no_download']:
         s.download_ebook()
     if not cmdargs.extras['no_convert']:
         s.convert()
