@@ -9,14 +9,14 @@ Store CSS here
 
 ## templates
 Store argument templates in YAML format in this folder. The following arguments are commonly used:
-- container (mandatory)
+- container *mandatory*
   - A CSS selector (usually) describing the \<p\> tags containing your story text
-- next (mandatory)
+- next *mandatory*
   - A CSS selector describing how to find the hyperlink for the next chapter
-- detect_title (optional)
+- detect_title *optional*
   - A CSS selector to locate the chapter title
-- style (optional)
+- style *optional*
   - Path to a CSS file with the style to apply to the HTML story
-- scripts (optional)
+- scripts *optional*
   - Scripts to be added to the <head> tag
   - Note that these should be supplied as a list
