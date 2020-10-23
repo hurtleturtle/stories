@@ -337,4 +337,4 @@ if __name__ == '__main__':
     if not cmdargs.extras['no_convert']:
         s.convert()
     if not cmdargs.extras['no_email']:
-        s.send_ebook()
+        s.send_ebook(pwfile='.ps')
