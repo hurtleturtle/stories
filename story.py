@@ -248,8 +248,9 @@ class Email():
         self.send_message()
 
 
-class Args():
+class Args(ArgumentParser):
     def __init__(self):
+        super().__init__()
         args = self.get_args()
         self.story = self.load_story_args(args)
         self.extras = {}
@@ -271,10 +272,9 @@ class Args():
         return sargs
 
     def get_args(self):
-        parser = ArgumentParser()
-        story = parser.add_argument_group('story')
-        debug = parser.add_argument_group('debug')
-        actions = parser.add_argument_group('actions')
+        story = self.add_argument_group('story')
+        debug = self.add_argument_group('debug')
+        actions = self.add_argument_group('actions')
         story.add_argument('-u', '--url', help='URL of first chapter')
         story.add_argument('-i', '--input-template',
                            help='Specify template of arguments')
@@ -294,7 +294,7 @@ class Args():
         actions.add_argument('--no-email', action='store_true',
                              default=False, help='Do not send to kindle')
 
-        args = parser.parse_args()
+        args = self.parse_args()
 
         if not args.url:
             exit('Please specify a URL for the first chapter.')
@@ -333,7 +333,7 @@ if __name__ == '__main__':
     if cmdargs.story['verbosity'] > 1:
         print(cmdargs.__dict__)
 
-    if not cmdargs.extras['no_download']:
+    if not cmdargs.extraas['no_download']:
         s.download_ebook()
     if not cmdargs.extras['no_convert']:
         s.convert()
