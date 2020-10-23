@@ -297,6 +297,7 @@ class Args(ArgumentParser):
         story.add_argument('-n', '--next', help='Next chapter CSS')
         story.add_argument('-d', '--detect-title', default=False,
                            help='CSS selector for chapter title')
+        story.add_argument('-s', '--scripts', help='Scripts to be added')
 
         debug.add_argument('-v', dest='verbosity', action='count', default=0,
                            help='Specify verbose output')
