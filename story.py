@@ -101,7 +101,7 @@ class Story():
                            flags=re.IGNORECASE)
 
         self.current_chapter += 1
-        chap_title = 'Chapter ' + self.current_chapter
+        chap_title = 'Chapter ' + str(self.current_chapter)
         chap_title += (' - ' + title) if title else ''
         heading.string = NavigableString(chap_title)
 
