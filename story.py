@@ -24,6 +24,7 @@ class Story():
         self.debug = args.get('verbosity', 0)
         self.container = args.get('container', 'div.chapter-content')
         self.next = args.get('next', 'a#next_chap')
+        self.chap_title_css = args.get('detect_title', False)
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', ''))
         self.cwd = os.path.dirname(sys.argv[0])
@@ -68,47 +69,46 @@ class Story():
 
         # filter chapter content
         filtered = soup.select(container)
-        title_added = False
 
         # add div wrapper to each chapter
         # add chapter content to story
         if len(filtered) < 1:
-            print('Container not found.')
-        else:
-            chapter = soup.new_tag('div')
-            chapter['class'] = 'chp'
+            print('Chapter content not found.')
+            return False
 
-            for tag in filtered:
-                if not title_added and detect_title:
-                    title_added = self.detect_chapter_title(tag)
-                chapter.append(tag)
+        chapter = soup.new_tag('div')
+        chapter['class'] = 'chp'
 
-            if not title_added:
-                heading = soup.new_tag('h2')
-                heading['class'] = 'chapter-heading'
-                self.current_chapter += 1
-                heading.string = NavigableString('Chapter ' +
-                                                 str(self.current_chapter))
-                chapter.insert(0, heading)
-                if self.debug:
-                    print(heading.string)
+        title = self.get_chapter_title(soup)
+        chapter.append(title)
 
-            if self.debug > 2:
-                print(chapter.prettify())
+        for tag in filtered:
+            chapter.append(tag)
 
-            self.story.body.append(chapter)
+        if self.debug > 2:
+            print(chapter.prettify())
 
-    def detect_chapter_title(self, tag):
-        if tag.string:
-            title = re.search(r'Chapter\s+(\d+)', tag.string, re.IGNORECASE)
-            if title:
-                self.current_chapter = int(title.group(1))
-                tag.name = 'h2'
-                tag['class'] = 'chapter-heading'
-                if self.debug:
-                    print(tag.string)
+        self.story.body.append(chapter)
 
-                return True
+    def get_chapter_title(self, soup):
+        heading = soup.new_tag('h2')
+        heading['class'] = 'chapter-heading'
+        title = ''
+
+        if self.chap_title_css:
+            tag = soup.select_one(self.chap_title_css)
+            title = re.sub(r'chapter\s(\d+)\s+[:-]+\s+', '', tag.string,
+                           flags=re.IGNORECASE)
+
+        self.current_chapter += 1
+        chap_title = 'Chapter ' + self.current_chapter
+        chap_title += (' - ' + title) if title else ''
+        heading.string = NavigableString(chap_title)
+
+        if self.debug:
+            print(heading)
+
+        return heading
 
     def get_next_url(self, soup):
         try:
