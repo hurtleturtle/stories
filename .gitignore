@@ -1,10 +1,13 @@
 bs1.py
-*.html
-*.mobi
 .ps
 .tern*
 add_ids.py
 remove_chap.py
+
+html
+html/*
+mobi
+mobi/*
 
 # Do not ignore the following
 !template.html
