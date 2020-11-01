@@ -26,7 +26,7 @@ class Story():
         self.next = args.get('next', 'a#next_chap')
         self.chap_title_css = args.get('detect_title', False)
         self.title = args.get('title', 'ebook')
-        self.filename = args.get('filename', self.title.replace(' ', ''))
+        self.filename = args.get('filename', self.title.replace(' ', '_'))
         self.cwd = os.path.dirname(sys.argv[0])
         self.html_folder = os.path.join(self.cwd, 'html')
         self.ebook_folder = os.path.join(self.cwd, 'mobi')
