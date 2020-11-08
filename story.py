@@ -17,6 +17,7 @@ import yaml
 class Story():
     def __init__(self, args):
         self.initial_url = args['url']
+        self.folder = '/home/jono/projects/stories'
 
         # get base url of site
         parsed_url = urlparse(self.initial_url)
@@ -28,9 +29,9 @@ class Story():
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', '_'))
         self.cwd = os.path.dirname(sys.argv[0])
-        self.html_folder = os.path.join(self.cwd, 'html')
-        self.ebook_folder = os.path.join(self.cwd, 'mobi')
-        self.style_folder = os.path.join(self.cwd, 'styles')
+        self.html_folder = os.path.join(self.folder, 'html')
+        self.ebook_folder = os.path.join(self.folder, 'mobi')
+        self.style_folder = os.path.join(self.folder, 'styles')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
         self.ebook_file = os.path.join(self.ebook_folder,
@@ -39,13 +40,14 @@ class Story():
                                   args.get('style', 'white-style.css'))
         self.scripts = self.get_scripts(args.get('scripts', ''))
         self.args = args
-        self.story = self.init_story()
+        self.story = self.init_story(os.path.join(self.folder,
+                                     'template.html'))
         self.current_chapter = 0
 
         if self.debug > 1:
             print(args)
 
-    def init_story(self, template_file='template.html'):
+    def init_story(self, template_file):
         with open(template_file, 'r') as f:
             return BeautifulSoup(f, features='lxml')
 
@@ -103,7 +105,7 @@ class Story():
 
         if self.chap_title_css:
             tag = soup.select_one(self.chap_title_css)
-            title = re.sub(r'chapter\s(\d+)\s+[:-]+\s+', '', tag.string,
+            title = re.sub(r'chapter\s+(\d+)\s*[:-]+\s+', '', tag.string,
                            flags=re.IGNORECASE)
 
         self.current_chapter += 1
@@ -147,7 +149,9 @@ class Story():
     def get_scripts(self, scripts):
         if self.debug > 1:
             print(scripts)
-        if not isinstance(scripts, list):
+        if not scripts:
+            return ''
+        elif not isinstance(scripts, list):
             scripts = scripts.split(',')
 
         return [os.path.abspath(s) for s in scripts]
