@@ -1,4 +1,4 @@
 verbosity: 1
 container: div#chr-content p
 next: a#next_chap
-detect_title: div#chr-content > p > span
+detect_title: span.chr-text
