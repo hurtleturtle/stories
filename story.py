@@ -51,12 +51,21 @@ class Story():
         with open(template_file, 'r') as f:
             return BeautifulSoup(f, features='lxml')
 
-    def load_webpage(self, url):
+    def load_webpage(self, url, retries=3):
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; \
                     rv:24.0) Gecko/20100101 Firefox/24.0'}
         if self.debug > 1:
             print(url + '\n', headers)
-        response = requests.get(url, headers=headers)
+
+        i = 0
+        response = None
+        while (i < retries and not response):
+            try:
+                response = requests.get(url, headers=headers)
+                break
+            except requests.ConnectionError:
+                response = None
+            i += 1
 
         if self.debug > 1:
             print(response.status_code, response.reason)
