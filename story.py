@@ -125,6 +125,8 @@ class Story():
             next_url = soup.select(self.next)[0].get('href')
             if self.debug > 1:
                 print(f'Next URL: {next_url}')
+            if self.debug > 2:
+                print(soup.select(self.next))
         except IndexError:
             print(f'Could not locate {self.next}.')
             if self.debug > 1:
@@ -280,8 +282,9 @@ class Email():
 
 
 class Args(ArgumentParser):
-    def __init__(self):
+    def __init__(self, folder=None):
         super().__init__()
+        self.folder = folder if folder else os.path.dirname(sys.argv[0])
         args = self.get_args()
         self.story = self.load_story_args(args)
         self.extras = {}
@@ -339,7 +342,7 @@ class Args(ArgumentParser):
         if not filename:
             return None
 
-        template_dir = os.path.join(os.path.dirname(sys.argv[0]), 'templates')
+        template_dir = os.path.join(self.folder, 'templates')
 
         def check_files(files=[]):
             for f in files:
@@ -364,7 +367,7 @@ class Args(ArgumentParser):
 
 
 if __name__ == '__main__':
-    cmdargs = Args()
+    cmdargs = Args('/home/jono/projects/stories')
     s = Story(cmdargs.story)
 
     if cmdargs.story['verbosity'] > 1:
