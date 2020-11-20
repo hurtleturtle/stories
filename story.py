@@ -54,6 +54,8 @@ class Story():
     def load_webpage(self, url):
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; \
                     rv:24.0) Gecko/20100101 Firefox/24.0'}
+        if self.debug > 1:
+            print(url + '\n', headers)
         response = requests.get(url, headers=headers)
 
         if self.debug > 1:
@@ -121,17 +123,21 @@ class Story():
     def get_next_url(self, soup):
         try:
             next_url = soup.select(self.next)[0].get('href')
+            if self.debug > 1:
+                print(f'Next URL: {next_url}')
         except IndexError:
             print(f'Could not locate {self.next}.')
             if self.debug > 1:
                 print('\n' + soup.prettify() + '\n')
             return ''
 
-        if next_url:
-            return self.base_url + next_url
-        else:
+        if not next_url:
             print('Could not get next url.')
             return ''
+        elif 'http' not in next_url:
+            return self.base_url + next_url
+        else:
+            return next_url
 
     def add_chapter(self, url):
         page = self.load_webpage(url)
@@ -286,9 +292,11 @@ class Args(ArgumentParser):
 
     def load_story_args(self, args={}):
         sargs = args.__dict__.copy()
-        for key, item in self.get_template(sargs['input_template']).items():
-            if not sargs.get(key):
-                sargs[key] = item
+        template = self.get_template(sargs['input_template'])
+        if template:
+            for key, item in template.items():
+                if not sargs.get(key):
+                    sargs[key] = item
 
         extras = ['input_template', 'no_download', 'no_convert', 'no_email']
         for e in extras:
@@ -328,6 +336,9 @@ class Args(ArgumentParser):
         return args
 
     def get_template(self, filename):
+        if not filename:
+            return None
+
         template_dir = os.path.join(os.path.dirname(sys.argv[0]), 'templates')
 
         def check_files(files=[]):
