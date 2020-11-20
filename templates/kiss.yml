@@ -1,0 +1,4 @@
+verbosity: 1
+container: div.reading-content p
+next: a.next_page
+detect_title: div.reading-content p:nth-child(2)

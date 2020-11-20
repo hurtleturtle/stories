@@ -1,0 +1,4 @@
+verbosity: 1
+container: div.chapter__content p
+next: a#btn-next
+detect_title: div.chapter-info h3
