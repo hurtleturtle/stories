@@ -29,9 +29,9 @@ class Story():
         self.title = args.get('title', 'ebook')
         self.filename = args.get('filename', self.title.replace(' ', '_'))
         self.cwd = os.path.dirname(sys.argv[0])
-        self.html_folder = os.path.join(self.folder, 'html')
-        self.ebook_folder = os.path.join(self.folder, 'mobi')
-        self.style_folder = os.path.join(self.folder, 'styles')
+        self.html_folder = self.get_folder('html')
+        self.ebook_folder = self.get_folder('mobi')
+        self.style_folder = self.get_folder('styles')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
         self.ebook_file = os.path.join(self.ebook_folder,
@@ -50,6 +50,17 @@ class Story():
     def init_story(self, template_file):
         with open(template_file, 'r') as f:
             return BeautifulSoup(f, features='lxml')
+
+    def get_folder(self, folder_name):
+        folder_path = os.path.join(self.folder, folder_name)
+
+        try:
+            os.makedirs(folder_path)
+        except OSError:
+            print(f'Could not make {folder_path}. Please edit the folder.')
+            sys.exit()
+
+        return folder_path
 
     def load_webpage(self, url, retries=3):
         headers = {'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux i686; \
