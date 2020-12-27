@@ -1,0 +1,4 @@
+verbosity: 1
+container: div.entry-content p
+next: a#next_chap
+detect_title: span.chr-text
