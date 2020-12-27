@@ -263,12 +263,15 @@ class Email():
     def __init__(self, title, filepath, passfile=None):
         self.title = title
         self.filepath = filepath
-        self.askpass = (passfile is None)
+        self.askpass = (passfile is None or not os.path.exists(passfile))
         self.passfile = passfile
 
     def load_pass(self):
         if self.askpass:
-            return getpass('Input password for ' + self.msg['From'] + ': ')
+            pw = getpass('Input password for ' + self.msg['From'] + ': ')
+            if input('Save password [y/n]? ').lower()[0] == 'y':
+                with open('.ps', 'w') as f:
+                    f.write(pw)
         else:
             if os.path.isfile(self.passfile):
                 with open(self.passfile) as f:
