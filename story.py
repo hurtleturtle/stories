@@ -56,6 +56,8 @@ class Story():
 
         try:
             os.makedirs(folder_path)
+        except FileExistsError:
+            return folder_path
         except OSError:
             print(f'Could not make {folder_path}. Please edit the folder.')
             sys.exit()
