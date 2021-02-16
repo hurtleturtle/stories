@@ -8,6 +8,7 @@ html
 html/*
 mobi
 mobi/*
+.idea/
 
 # Do not ignore the following
 !template.html
