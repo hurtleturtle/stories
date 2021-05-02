@@ -72,7 +72,7 @@ class Story():
 
         i = 0
         response = None
-        while (i < retries and not response):
+        while i < retries and not response:
             try:
                 response = requests.get(url, headers=headers)
                 break
@@ -126,13 +126,15 @@ class Story():
         heading = soup.new_tag('h2')
         heading['class'] = 'chapter-heading'
         title = ''
+        chapter_number = None
 
         if self.chap_title_css:
             tag = soup.select_one(self.chap_title_css)
-            title = re.sub(r'chapter\s+(\d+)\s*[:-]+\s+', '', tag.string,
-                           flags=re.IGNORECASE)
+            chapter_details = re.match(r'(chapter\s+(\d+))[:\-\s]*([\w\s\'\-\d:.,]*)', tag.string, flags=re.IGNORECASE)
+            chapter_number = chapter_details.group(2)
+            title = chapter_details.group(3)
 
-        self.current_chapter += 1
+        self.current_chapter = chapter_number if chapter_number else self.current_chapter + 1
         chap_title = 'Chapter ' + str(self.current_chapter)
         chap_title += (' - ' + title) if title else ''
         heading.string = NavigableString(chap_title)
