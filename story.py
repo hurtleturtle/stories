@@ -131,10 +131,13 @@ class Story():
         if self.chap_title_css:
             tag = soup.select_one(self.chap_title_css)
             chapter_details = re.match(r'(chapter\s+(\d+))[:\-\s]*([\w\s\'\-\d:.,]*)', tag.string, flags=re.IGNORECASE)
-            chapter_number = chapter_details.group(2)
-            title = chapter_details.group(3)
+            try:
+                chapter_number = chapter_details.group(2)
+                title = chapter_details.group(3)
+            except AttributeError:
+                title = ''
 
-        self.current_chapter = chapter_number if chapter_number else self.current_chapter + 1
+        self.current_chapter = chapter_number if chapter_number else int(self.current_chapter) + 1
         chap_title = 'Chapter ' + str(self.current_chapter)
         chap_title += (' - ' + title) if title else ''
         heading.string = NavigableString(chap_title)

@@ -1,0 +1,4 @@
+verbosity: 1
+container: div.chapter-content
+next: div.nav-buttons > div:last-child a.btn.btn-primary
+detect_title: div.fic-header h1
