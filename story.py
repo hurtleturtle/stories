@@ -130,10 +130,10 @@ class Story():
 
         if self.chap_title_css:
             tag = soup.select_one(self.chap_title_css)
-            chapter_details = re.match(r'(chapter\s+(\d+))[:\-\s]*([\w\s\'\-\d:.,]*)', tag.string, flags=re.IGNORECASE)
+            chapter_details = re.match(r'((chapter)?\s*(\d+))[:\-\.\s]*([\w\s\'\-\d:.,]*)', tag.string, flags=re.IGNORECASE)
             try:
-                chapter_number = chapter_details.group(2)
-                title = chapter_details.group(3)
+                chapter_number = chapter_details.group(3)
+                title = chapter_details.group(4)
             except AttributeError:
                 title = ''
 
