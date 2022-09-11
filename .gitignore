@@ -4,10 +4,8 @@ bs1.py
 add_ids.py
 remove_chap.py
 
-html
-html/*
-mobi
-mobi/*
+html/
+mobi/
 .idea/
 
 # Do not ignore the following
