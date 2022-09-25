@@ -8,6 +8,7 @@ html/
 mobi/
 .idea/
 venv/
+__pycache__/
 
 # Do not ignore the following
 !template.html
