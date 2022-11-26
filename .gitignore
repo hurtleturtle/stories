@@ -9,6 +9,9 @@ mobi/
 epub/
 .idea/
 venv/
+__pycache__/
+build/
+*.egg-info/
 
 # Do not ignore the following
 !template.html
