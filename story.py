@@ -12,6 +12,7 @@ import email
 import smtplib
 from getpass import getpass
 import yaml
+from pathlib import Path
 
 
 class Story():
@@ -30,12 +31,12 @@ class Story():
         self.filename = args.get('filename', self.title.replace(' ', '_'))
         self.cwd = os.path.dirname(sys.argv[0])
         self.html_folder = self.get_folder('html')
-        self.ebook_folder = self.get_folder('mobi')
+        self.ebook_folder = self.get_folder('epub')
         self.style_folder = self.get_folder('styles')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
         self.ebook_file = os.path.join(self.ebook_folder,
-                                       self.filename + '.mobi')
+                                       self.filename + '.epub')
         self.style = os.path.join(self.style_folder,
                                   args.get('style', 'white-style.css'))
         self.scripts = self.get_scripts(args.get('scripts', ''))
@@ -130,7 +131,7 @@ class Story():
 
         if self.chap_title_css:
             tag = soup.select_one(self.chap_title_css)
-            chapter_details = re.match(r'((chapter)?\s*(\d+))?[:\-\.\s]*([\w\s\'\-\–\d:.,]*)', tag.string, flags=re.IGNORECASE)
+            chapter_details = re.match(r'((chapter)?[:\s]*(\d+))?[:\-\.\s]*(.*)', tag.string, flags=re.IGNORECASE)
             try:
                 chapter_number = chapter_details.group(3)
                 title = chapter_details.group(4)
@@ -211,8 +212,8 @@ class Story():
             from_file = self.html_file
         if not to_file:
             to_file = self.ebook_file
-        if '.mobi' not in to_file[5:]:
-            to_file += '.mobi'
+        if '.epub' not in to_file[-5:]:
+            to_file += '.epub'
 
         params = ['--title', self.title, '--linearize-tables']
         subprocess.run(['ebook-convert', from_file, to_file] + params)
@@ -260,7 +261,7 @@ class Story():
         if not title:
             title = self.title
         if not filepath:
-            filepath = self.ebook_file
+            filepath = Path(self.ebook_file)
 
         eml = Email(title, filepath, pwfile)
         eml.send_ebook()
@@ -294,8 +295,8 @@ class Email():
         self.msg['Subject'] = self.title
         with open(self.filepath, 'rb') as f:
             self.msg.add_attachment(f.read(), maintype='application',
-                                    subtype='x-mobipocket-ebook',
-                                    filename=self.filepath)
+                                    subtype='epub+zip',
+                                    filename=self.filepath.name)
 
     def send_message(self):
         session = smtplib.SMTP('smtp.office365.com')
@@ -357,7 +358,7 @@ class Args(ArgumentParser):
         actions.add_argument('--no-download', action='store_true',
                              default=False, help='Do not download ebook')
         actions.add_argument('--no-convert', action='store_true',
-                             default=False, help='Do not convert html to mobi')
+                             default=False, help='Do not convert html to epub')
         actions.add_argument('--no-email', action='store_true',
                              default=False, help='Do not send to kindle')
 

@@ -6,7 +6,9 @@ remove_chap.py
 
 html/
 mobi/
+epub/
 .idea/
+venv/
 
 # Do not ignore the following
 !template.html
