@@ -291,7 +291,7 @@ class Email():
     def create_message(self):
         self.msg = email.message.EmailMessage()
         self.msg['From'] = 'jono.nicholas@hotmail.co.uk'
-        self.msg['To'] = 'jono.nicholas_kindle@kindle.com'
+        self.msg['To'] = 'jono.nicholas_kindle2@kindle.com'
         self.msg['Subject'] = self.title
         with open(self.filepath, 'rb') as f:
             self.msg.add_attachment(f.read(), maintype='application',

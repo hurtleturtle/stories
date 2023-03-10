@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import requests
 import re
 from bs4 import BeautifulSoup, NavigableString
@@ -31,12 +29,13 @@ class Story():
         self.filename = args.get('filename', self.title.replace(' ', '_'))
         self.cwd = os.path.dirname(sys.argv[0])
         self.html_folder = self.get_folder('html')
-        self.ebook_folder = self.get_folder('epub')
+        self.ebook_folder = self.get_folder(args.get('type', 'epub'))
+        self.extension = '.' + args.get('type', 'epub')
         self.style_folder = self.get_folder('styles')
         self.html_file = os.path.join(self.html_folder,
                                       self.filename + '.html')
         self.ebook_file = os.path.join(self.ebook_folder,
-                                       self.filename + '.epub')
+                                       self.filename + self.extension)
         self.style = os.path.join(self.style_folder,
                                   args.get('style', 'white-style.css'))
         self.scripts = self.get_scripts(args.get('scripts', ''))
@@ -96,7 +95,7 @@ class Story():
     def load_soup(self, page):
         return BeautifulSoup(page, features='lxml')
 
-    def process_story_content(self, soup, container=None, detect_title=False):
+    def process_story_content(self, soup: BeautifulSoup, container=None, detect_title=False):
         if not container:
             container = self.container
 
@@ -107,6 +106,7 @@ class Story():
         # add chapter content to story
         if len(filtered) < 1:
             print('Chapter content not found.')
+            print(soup.prettify())
             return False
 
         chapter = soup.new_tag('div')
@@ -212,8 +212,8 @@ class Story():
             from_file = self.html_file
         if not to_file:
             to_file = self.ebook_file
-        if '.epub' not in to_file[-5:]:
-            to_file += '.epub'
+        if self.extension not in to_file[-5:]:
+            to_file += self.extension
 
         params = ['--title', self.title, '--linearize-tables']
         subprocess.run(['ebook-convert', from_file, to_file] + params)
@@ -291,15 +291,15 @@ class Email():
     def create_message(self):
         self.msg = email.message.EmailMessage()
         self.msg['From'] = 'jono.nicholas@hotmail.co.uk'
-        self.msg['To'] = 'jono.nicholas_kindle@kindle.com'
+        self.msg['To'] = 'jono.nicholas_kindle2@kindle.com'
         self.msg['Subject'] = self.title
         with open(self.filepath, 'rb') as f:
             self.msg.add_attachment(f.read(), maintype='application',
-                                    subtype='epub+zip',
+                                    subtype='x-mobipocket-ebook',
                                     filename=self.filepath.name)
 
     def send_message(self):
-        session = smtplib.SMTP('smtp.office365.com')
+        session = smtplib.SMTP('smtp.office365.com', 587)
         session.ehlo()
         session.starttls()
         session.login(self.msg['From'], self.load_pass())
@@ -351,6 +351,7 @@ class Args(ArgumentParser):
         story.add_argument('-d', '--detect-title', default=False,
                            help='CSS selector for chapter title')
         story.add_argument('-s', '--scripts', help='Scripts to be added')
+        story.add_argument('--type', default='epub', help='Type of ebook')
 
         debug.add_argument('-v', dest='verbosity', action='count', default=0,
                            help='Specify verbose output')
