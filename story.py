@@ -269,7 +269,7 @@ class Story():
 
 class Email():
     def __init__(self, title, filepath, passfile=None):
-        self.title = title
+        self.title = title.replace('_', ' ')
         self.filepath = filepath
         self.askpass = (passfile is None or not os.path.exists(passfile))
         self.passfile = passfile
