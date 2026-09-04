@@ -11,12 +11,15 @@ import smtplib
 from getpass import getpass
 import yaml
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Story():
     def __init__(self, args):
         self.initial_url = args['url']
-        self.folder = '/home/jono/projects/stories'
+        self.folder = os.getenv('STORY_FOLDER', os.path.dirname(sys.argv[0]))
 
         # get base url of site
         parsed_url = urlparse(self.initial_url)
@@ -257,41 +260,37 @@ class Story():
 
         self.write(filename)
 
-    def send_ebook(self, title=None, filepath=None, pwfile=None):
+    def send_ebook(self, title=None, filepath=None):
         if not title:
             title = self.title
         if not filepath:
             filepath = Path(self.ebook_file)
 
-        eml = Email(title, filepath, pwfile)
+        eml = Email(title, filepath)
         eml.send_ebook()
 
 
 class Email():
-    def __init__(self, title, filepath, passfile=None):
+    def __init__(self, title, filepath):
         self.title = title.replace('_', ' ')
         self.filepath = filepath
-        self.askpass = (passfile is None or not os.path.exists(passfile))
-        self.passfile = passfile
+        self.from_addr = os.getenv('EMAIL_FROM')
+        self.to_addr = os.getenv('EMAIL_TO')
+        self.smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+        self.smtp_port = int(os.getenv('SMTP_PORT', 465))
 
     def load_pass(self):
-        if self.askpass:
-            pw = getpass('Input password for ' + self.msg['From'] + ': ')
-            if input('Save password [y/n]? ').lower()[0] == 'y':
-                with open('.ps', 'w') as f:
-                    f.write(pw)
-        else:
-            if os.path.isfile(self.passfile):
-                with open(self.passfile) as f:
-                    return f.read().strip()
-            else:
-                print('Could not retrieve email password.')
-                return False
+        pw = os.getenv('EMAIL_PASSWORD')
+        if pw:
+            return pw
+
+        print('EMAIL_PASSWORD not set in .env.')
+        return getpass('Input password for ' + self.from_addr + ': ')
 
     def create_message(self):
         self.msg = email.message.EmailMessage()
-        self.msg['From'] = 'jono.nicholas@hotmail.co.uk'
-        self.msg['To'] = 'jono.nicholas_kindle2@kindle.com'
+        self.msg['From'] = self.from_addr
+        self.msg['To'] = self.to_addr
         self.msg['Subject'] = self.title
         with open(self.filepath, 'rb') as f:
             self.msg.add_attachment(f.read(), maintype='application',
@@ -299,12 +298,9 @@ class Email():
                                     filename=self.filepath.name)
 
     def send_message(self):
-        session = smtplib.SMTP('smtp.office365.com', 587)
-        session.ehlo()
-        session.starttls()
-        session.login(self.msg['From'], self.load_pass())
-        session.send_message(self.msg)
-        session.quit()
+        with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port) as session:
+            session.login(self.from_addr, self.load_pass())
+            session.send_message(self.msg)
         print('Email sent to ' + self.msg['To'] + '.')
 
     def send_ebook(self):
@@ -410,4 +406,4 @@ if __name__ == '__main__':
     if not cmdargs.extras['no_convert']:
         s.convert()
     if not cmdargs.extras['no_email']:
-        s.send_ebook(pwfile=os.path.join(s.folder, '.ps'))
+        s.send_ebook()

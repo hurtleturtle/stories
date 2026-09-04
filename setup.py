@@ -13,6 +13,7 @@ setup(
         'pyyaml',
         'requests',
         'flask',
-        'flask-wtf'
+        'flask-wtf',
+        'python-dotenv'
     ]
 )
