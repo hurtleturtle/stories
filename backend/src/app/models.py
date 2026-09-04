@@ -103,7 +103,7 @@ class Job(Base):
     owner: Mapped[User] = relationship(back_populates="jobs")
     template: Mapped[Template | None] = relationship(back_populates="jobs")
     artifacts: Mapped[list[Artifact]] = relationship(
-        back_populates="job", cascade="all, delete-orphan"
+        back_populates="job", cascade="all, delete-orphan", lazy="selectin"
     )
 
 

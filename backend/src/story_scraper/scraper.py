@@ -47,7 +47,7 @@ class Story:
         )
 
         parsed = urlparse(config.url)
-        self.base_url = f"{parsed.scheme}://{parsed.hostname}"
+        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
         self.current_chapter: int | str = 0
         self.doc = self._load_template()
 

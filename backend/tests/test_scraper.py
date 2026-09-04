@@ -111,3 +111,25 @@ def test_next_url_resolves_relative_links_against_base_url():
         chapters = list(story.iter_chapters())
 
     assert chapters[1][1] == "https://example.com/chapter-2"
+
+
+@respx.mock
+def test_base_url_keeps_non_default_port():
+    """Regression test: base_url must include the port, not just the
+    hostname, or relative next-links break on any non-default-port host."""
+    respx.get("http://example.com:8000/chapter-1").mock(
+        return_value=httpx.Response(200, text=CHAPTER_1)
+    )
+    respx.get("http://example.com:8000/chapter-2").mock(
+        return_value=httpx.Response(200, text=CHAPTER_2)
+    )
+
+    config = StoryConfig(
+        url="http://example.com:8000/chapter-1",
+        container="div.chapter-content",
+        next_selector="a#next_chap",
+    )
+    with Story(config) as story:
+        chapters = list(story.iter_chapters())
+
+    assert chapters[1][1] == "http://example.com:8000/chapter-2"

@@ -15,7 +15,7 @@ from story_scraper.templates import iter_templates
 
 router = APIRouter(prefix="/api/templates", tags=["templates"])
 
-BUILTIN_TEMPLATE_DIR = Path(__file__).resolve().parents[4] / "templates"
+BUILTIN_TEMPLATE_DIR = Path(__file__).resolve().parents[3] / "templates"
 
 
 async def _get_owned(db: AsyncSession, user: User, template_id: UUID) -> Template:
