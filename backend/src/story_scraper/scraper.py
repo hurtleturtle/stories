@@ -77,10 +77,14 @@ class Story:
                 last_error = exc
                 if exc.response.status_code == 404:
                     raise
-                logger.warning("Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc)
+                logger.warning(
+                    "Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc
+                )
             except httpx.HTTPError as exc:
                 last_error = exc
-                logger.warning("Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc)
+                logger.warning(
+                    "Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc
+                )
 
         assert last_error is not None
         raise last_error

@@ -65,7 +65,8 @@ def main(argv: list[str] | None = None) -> None:
     config = resolve_config(args.url, template, overrides)
 
     output_dir = Path(settings.story_folder)
-    ebook_file = output_dir / config.ebook_type / f"{config.resolved_filename()}.{config.ebook_type}"
+    ebook_name = f"{config.resolved_filename()}.{config.ebook_type}"
+    ebook_file = output_dir / config.ebook_type / ebook_name
 
     with Story(config, progress=lambda n, u: logging.info("Chapter %d: %s", n, u)) as story:
         if not args.no_download:
