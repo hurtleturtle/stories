@@ -1,0 +1,65 @@
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-story}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-story}
+      POSTGRES_DB: ${POSTGRES_DB:-story}
+    volumes:
+      - db_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-story}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      target: api
+    env_file: .env
+    environment:
+      STORY_FOLDER: /data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    volumes:
+      - artifacts:/data/artifacts
+
+  worker:
+    build:
+      context: ./backend
+      target: worker
+    env_file: .env
+    environment:
+      STORY_FOLDER: /data/artifacts
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - artifacts:/data/artifacts
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "3000:80"
+
+volumes:
+  db_data:
+  artifacts:
