@@ -30,14 +30,16 @@ chown "$DEPLOY_USER:$DEPLOY_USER" /opt/stories
 chmod 700 /opt/stories
 
 script_dir=$(dirname "$(readlink -f "$0")")
-cp "$script_dir/compose.yaml" "$script_dir/deploy.sh" "$script_dir/autodeploy.sh" /opt/stories/
-chown "$DEPLOY_USER:$DEPLOY_USER" /opt/stories/compose.yaml /opt/stories/deploy.sh /opt/stories/autodeploy.sh
-chmod +x /opt/stories/deploy.sh /opt/stories/autodeploy.sh
+cp "$script_dir/compose.yaml" "$script_dir/deploy.sh" "$script_dir/autodeploy.sh" "$script_dir/prune.sh" /opt/stories/
+chown "$DEPLOY_USER:$DEPLOY_USER" /opt/stories/compose.yaml /opt/stories/deploy.sh /opt/stories/autodeploy.sh /opt/stories/prune.sh
+chmod +x /opt/stories/deploy.sh /opt/stories/autodeploy.sh /opt/stories/prune.sh
 
 sed "s/^User=.*/User=$DEPLOY_USER/" "$script_dir/story-autodeploy.service" > /etc/systemd/system/story-autodeploy.service
 cp "$script_dir/story-autodeploy.timer" /etc/systemd/system/story-autodeploy.timer
+sed "s/^User=.*/User=$DEPLOY_USER/" "$script_dir/story-prune.service" > /etc/systemd/system/story-prune.service
+cp "$script_dir/story-prune.timer" /etc/systemd/system/story-prune.timer
 systemctl daemon-reload
-systemctl enable --now story-autodeploy.timer
+systemctl enable --now story-autodeploy.timer story-prune.timer
 
 if [ ! -f /opt/stories/.env ]; then
     cp "$script_dir/env.example" /opt/stories/.env
