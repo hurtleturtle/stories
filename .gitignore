@@ -1,19 +1,22 @@
-bs1.py
-.ps
-.pw
 .env
-.tern*
-add_ids.py
-remove_chap.py
+.idea/
 
+# Python
+__pycache__/
+*.egg-info/
+build/
+dist/
+venv/
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Scrape output / artifacts
 html/
 mobi/
 epub/
-.idea/
-venv/
-__pycache__/
-build/
-*.egg-info/
+data/
 
-# Do not ignore the following
-!template.html
+# Frontend
+node_modules/
+frontend/dist/
