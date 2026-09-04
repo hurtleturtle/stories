@@ -1,0 +1,8 @@
+[Unit]
+Description=Deploy stories if a new image was pushed
+After=docker.service
+
+[Service]
+Type=oneshot
+User=jono
+ExecStart=/opt/stories/autodeploy.sh

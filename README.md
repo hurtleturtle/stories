@@ -59,3 +59,18 @@ cd backend
 uv run pytest
 uv run ruff check .
 ```
+
+## Deploying
+
+`.github/workflows/release.yml` builds and pushes `ghcr.io/hurtleturtle/stories-{api,worker,frontend}`
+on every `vX.Y.Z` tag (or manual dispatch). `deploy/` holds the production compose file plus
+provisioning/backup/auto-deploy automation for a fresh host:
+
+```
+scp deploy/* <host>:/tmp/ && ssh <host> sudo /tmp/provision.sh   # one-time host setup
+# fill in /opt/stories/.env (see deploy/env.example), then:
+sudo /tmp/install-backup.sh                                     # optional nightly pg_dump backup
+```
+
+`story-autodeploy.timer` then polls `APP_TAG` every 5 minutes and redeploys on change; pin
+`APP_TAG` to a fixed version in `.env` to pause auto-deploy.

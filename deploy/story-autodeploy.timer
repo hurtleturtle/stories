@@ -1,0 +1,9 @@
+[Unit]
+Description=Poll for a new stories release
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
