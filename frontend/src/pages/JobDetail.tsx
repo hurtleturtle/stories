@@ -72,28 +72,30 @@ export default function JobDetail() {
       {job.artifacts.length > 0 && (
         <div className="card">
           <strong>Artifacts</strong>
-          <table>
-            <tbody>
-              {job.artifacts.map((artifact) => (
-                <tr key={artifact.id}>
-                  <td>{artifact.filename}</td>
-                  <td>{(artifact.size_bytes / 1024).toFixed(1)} KB</td>
-                  <td>
-                    <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
-                  </td>
-                  <td>
-                    <button
-                      className="secondary"
-                      onClick={() => emailMutation.mutate(artifact.id)}
-                      disabled={emailMutation.isPending}
-                    >
-                      Email to Kindle
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table>
+              <tbody>
+                {job.artifacts.map((artifact) => (
+                  <tr key={artifact.id}>
+                    <td>{artifact.filename}</td>
+                    <td>{(artifact.size_bytes / 1024).toFixed(1)} KB</td>
+                    <td>
+                      <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
+                    </td>
+                    <td>
+                      <button
+                        className="secondary"
+                        onClick={() => emailMutation.mutate(artifact.id)}
+                        disabled={emailMutation.isPending}
+                      >
+                        Email to Kindle
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

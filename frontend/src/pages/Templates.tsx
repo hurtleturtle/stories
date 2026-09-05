@@ -40,32 +40,34 @@ export default function Templates() {
       {isLoading && <p>Loading...</p>}
       {templates && templates.length === 0 && <p>No templates yet.</p>}
       {templates && templates.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Container</th>
-              <th>Ebook type</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {templates.map((t) => (
-              <tr key={t.id}>
-                <td>
-                  <Link to={`/templates/${t.id}`}>{t.name}</Link>
-                </td>
-                <td>{t.container}</td>
-                <td>{t.ebook_type}</td>
-                <td>
-                  <button className="secondary" onClick={() => deleteMutation.mutate(t.id)}>
-                    Delete
-                  </button>
-                </td>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Container</th>
+                <th>Ebook type</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {templates.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <Link to={`/templates/${t.id}`}>{t.name}</Link>
+                  </td>
+                  <td>{t.container}</td>
+                  <td>{t.ebook_type}</td>
+                  <td>
+                    <button className="secondary" onClick={() => deleteMutation.mutate(t.id)}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

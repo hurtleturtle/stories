@@ -26,7 +26,7 @@ export default function Login() {
   }
 
   return (
-    <div className="content" style={{ margin: "3rem auto" }}>
+    <div className="content auth-page">
       <h1>Log in</h1>
       <form onSubmit={onSubmit}>
         <label>

@@ -30,7 +30,7 @@ export default function Register() {
   }
 
   return (
-    <div className="content" style={{ margin: "3rem auto" }}>
+    <div className="content auth-page">
       <h1>Register</h1>
       <form onSubmit={onSubmit}>
         <label>

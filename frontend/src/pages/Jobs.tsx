@@ -21,30 +21,32 @@ export default function Jobs() {
       {isLoading && <p>Loading...</p>}
       {data && data.items.length === 0 && <p>No jobs yet. Start one from "New job".</p>}
       {data && data.items.length > 0 && (
-        <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Status</th>
-              <th>Chapters</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.items.map((job) => (
-              <tr key={job.id}>
-                <td>
-                  <Link to={`/jobs/${job.id}`}>{job.title}</Link>
-                </td>
-                <td>
-                  <span className={`badge badge-${job.status}`}>{job.status}</span>
-                </td>
-                <td>{job.chapters_scraped}</td>
-                <td>{new Date(job.created_at).toLocaleString()}</td>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Chapters</th>
+                <th>Created</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.items.map((job) => (
+                <tr key={job.id}>
+                  <td>
+                    <Link to={`/jobs/${job.id}`}>{job.title}</Link>
+                  </td>
+                  <td>
+                    <span className={`badge badge-${job.status}`}>{job.status}</span>
+                  </td>
+                  <td>{job.chapters_scraped}</td>
+                  <td>{new Date(job.created_at).toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
