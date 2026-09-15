@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { apiErrorMessage } from "../api/client";
 import { getSettings, updateSettings } from "../api/endpoints";
 
 export default function Settings() {
@@ -12,6 +13,7 @@ export default function Settings() {
   const [smtpPort, setSmtpPort] = useState(465);
   const [smtpUsername, setSmtpUsername] = useState("");
   const [smtpPassword, setSmtpPassword] = useState("");
+  const [clearPassword, setClearPassword] = useState(false);
   const [autoSend, setAutoSend] = useState(false);
 
   useEffect(() => {
@@ -33,10 +35,12 @@ export default function Settings() {
         smtp_port: smtpPort,
         smtp_username: smtpUsername || undefined,
         smtp_password: smtpPassword || undefined,
+        clear_smtp_password: clearPassword,
         auto_send_default: autoSend,
       }),
     onSuccess: () => {
       setSmtpPassword("");
+      setClearPassword(false);
       queryClient.invalidateQueries({ queryKey: ["settings"] });
     },
   });
@@ -84,8 +88,20 @@ export default function Settings() {
             type="password"
             value={smtpPassword}
             onChange={(e) => setSmtpPassword(e.target.value)}
+            disabled={clearPassword}
+            autoComplete="new-password"
           />
         </label>
+        {data?.smtp_password_set && (
+          <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
+            <input
+              type="checkbox"
+              checked={clearPassword}
+              onChange={(e) => setClearPassword(e.target.checked)}
+            />
+            Forget the stored password
+          </label>
+        )}
         <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem" }}>
           <input
             type="checkbox"
@@ -94,6 +110,12 @@ export default function Settings() {
           />
           Email new jobs to Kindle by default
         </label>
+        {mutation.isError && (
+          <span className="error">
+            {apiErrorMessage(mutation.error, "Could not save settings.")}
+          </span>
+        )}
+        {mutation.isSuccess && !mutation.isPending && <span className="muted">Saved.</span>}
         <button className="primary" type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Saving..." : "Save"}
         </button>

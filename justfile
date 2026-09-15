@@ -5,9 +5,13 @@
 dev:
     docker compose up --build
 
-# Run the backend test suite (no DB needed).
+# Run the backend test suite (the API tests skip without a DB - see test-db).
 test:
     cd backend && uv run pytest
+
+# Run the whole suite, API tests included, against the dev stack's postgres.
+test-db:
+    cd backend && TEST_DATABASE_URL=postgresql://story:story@localhost:5432/story_test uv run pytest
 
 lint:
     cd backend && uv run ruff check .

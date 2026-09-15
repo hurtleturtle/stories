@@ -6,6 +6,7 @@ import type {
   Template,
   TemplateInput,
   UserSettings,
+  UserSettingsInput,
 } from "./types";
 
 export async function login(email: string, password: string): Promise<string> {
@@ -54,15 +55,7 @@ export async function getSettings(): Promise<UserSettings> {
   return data;
 }
 
-export async function updateSettings(input: {
-  kindle_address?: string;
-  email_from?: string;
-  smtp_host: string;
-  smtp_port: number;
-  smtp_username?: string;
-  smtp_password?: string;
-  auto_send_default: boolean;
-}): Promise<UserSettings> {
+export async function updateSettings(input: UserSettingsInput): Promise<UserSettings> {
   const { data } = await api.put("/settings", input);
   return data;
 }
@@ -100,6 +93,10 @@ export function artifactDownloadUrl(jobId: string, artifactId: string): string {
   return `/api/jobs/${jobId}/artifacts/${artifactId}`;
 }
 
-export async function emailArtifact(jobId: string, artifactId: string): Promise<void> {
-  await api.post(`/jobs/${jobId}/email`, null, { params: { artifact_id: artifactId } });
+/** (Re)send a completed job to Kindle. Omit the artifact to send the job's ebook. */
+export async function sendJobToKindle(jobId: string, artifactId?: string): Promise<Job> {
+  const { data } = await api.post(`/jobs/${jobId}/email`, {
+    artifact_id: artifactId ?? null,
+  });
+  return data;
 }

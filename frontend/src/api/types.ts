@@ -1,4 +1,5 @@
 export type JobStatus = "pending" | "running" | "success" | "failed" | "cancelled";
+export type EmailStatus = "not_sent" | "pending" | "sent" | "failed";
 
 export interface Template {
   id: string;
@@ -44,6 +45,10 @@ export interface Job {
   chapters_scraped: number;
   error: string | null;
   log: string | null;
+  email_status: EmailStatus;
+  email_recipient: string | null;
+  email_error: string | null;
+  email_sent_at: string | null;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
@@ -67,6 +72,17 @@ export interface JobCreateInput {
   ebook_type?: string;
   num_chapters?: number;
   send_email?: boolean;
+}
+
+export interface UserSettingsInput {
+  kindle_address?: string;
+  email_from?: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username?: string;
+  smtp_password?: string;
+  clear_smtp_password?: boolean;
+  auto_send_default: boolean;
 }
 
 export interface UserSettings {

@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 
 export const TOKEN_KEY = "story_scraper_token";
 
@@ -35,4 +35,10 @@ export function clearToken() {
 
 export function isAuthenticated(): boolean {
   return !!localStorage.getItem(TOKEN_KEY);
+}
+
+/** The API's `detail` message for a failed request, or a caller-supplied fallback. */
+export function apiErrorMessage(error: unknown, fallback: string): string {
+  const detail = (error as AxiosError<{ detail?: string }>)?.response?.data?.detail;
+  return typeof detail === "string" ? detail : fallback;
 }

@@ -7,7 +7,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from app.models import JobStatus
+from app.models import EmailStatus, JobStatus
 
 
 class UserCreate(BaseModel):
@@ -71,6 +71,9 @@ class UserSettingsIn(BaseModel):
     smtp_port: int = 465
     smtp_username: str | None = None
     smtp_password: str | None = None
+    # A blank smtp_password leaves the stored one alone; this asks for it to
+    # be forgotten instead.
+    clear_smtp_password: bool = False
     auto_send_default: bool = False
 
 
@@ -108,6 +111,12 @@ class ArtifactOut(BaseModel):
     content_type: str
 
 
+class JobEmailRequest(BaseModel):
+    """Which artifact to send to Kindle. Omitting it picks the job's ebook."""
+
+    artifact_id: UUID | None = None
+
+
 class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -120,6 +129,10 @@ class JobOut(BaseModel):
     chapters_scraped: int
     error: str | None
     log: str | None
+    email_status: EmailStatus
+    email_recipient: str | None
+    email_error: str | None
+    email_sent_at: datetime | None
     created_at: datetime
     started_at: datetime | None
     finished_at: datetime | None

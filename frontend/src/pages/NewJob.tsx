@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createJob, listTemplates } from "../api/endpoints";
+import { apiErrorMessage } from "../api/client";
+import { createJob, getSettings, listTemplates } from "../api/endpoints";
 
 export default function NewJob() {
   const [url, setUrl] = useState("");
@@ -14,6 +15,13 @@ export default function NewJob() {
   const queryClient = useQueryClient();
 
   const { data: templates } = useQuery({ queryKey: ["templates"], queryFn: listTemplates });
+  const { data: settings } = useQuery({ queryKey: ["settings"], queryFn: getSettings });
+
+  // "Email new jobs to Kindle by default" from Settings seeds the checkbox,
+  // which the user can still flip for this one job.
+  useEffect(() => {
+    if (settings) setSendEmail(settings.auto_send_default);
+  }, [settings]);
 
   const mutation = useMutation({
     mutationFn: createJob,
@@ -21,7 +29,8 @@ export default function NewJob() {
       queryClient.invalidateQueries({ queryKey: ["jobs"] });
       navigate(`/jobs/${job.id}`);
     },
-    onError: () => setError("Could not start job. Check the URL and try again."),
+    onError: (err) =>
+      setError(apiErrorMessage(err, "Could not start job. Check the URL and try again.")),
   });
 
   function onSubmit(e: React.FormEvent) {
@@ -82,6 +91,12 @@ export default function NewJob() {
           />
           Email to Kindle when done
         </label>
+        {sendEmail && settings && !settings.smtp_password_set && (
+          <span className="error">
+            Email settings are incomplete - finish them on the Settings page or the send will
+            be skipped.
+          </span>
+        )}
         {error && <span className="error">{error}</span>}
         <button className="primary" type="submit" disabled={mutation.isPending}>
           {mutation.isPending ? "Starting..." : "Start job"}
