@@ -288,6 +288,19 @@ td {
   font-size: 0.9rem;
 }
 
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.row-between {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
 pre.log {
   background: var(--bg);
   border: 1px solid var(--border);

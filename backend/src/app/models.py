@@ -21,6 +21,15 @@ class JobStatus(enum.StrEnum):
     cancelled = "cancelled"
 
 
+class EmailStatus(enum.StrEnum):
+    """Delivery state of the send-to-Kindle email for a job."""
+
+    not_sent = "not_sent"
+    pending = "pending"
+    sent = "sent"
+    failed = "failed"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -31,7 +40,7 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     settings: Mapped[UserSettings | None] = relationship(
-        back_populates="user", cascade="all, delete-orphan", uselist=False
+        back_populates="user", cascade="all, delete-orphan", uselist=False, lazy="selectin"
     )
     templates: Mapped[list[Template]] = relationship(
         back_populates="owner", cascade="all, delete-orphan"
@@ -96,6 +105,12 @@ class Job(Base):
     celery_task_id: Mapped[str | None]
     error: Mapped[str | None] = mapped_column(Text)
     log: Mapped[str | None] = mapped_column(Text)
+    email_status: Mapped[EmailStatus] = mapped_column(
+        default=EmailStatus.not_sent, server_default=EmailStatus.not_sent.value
+    )
+    email_recipient: Mapped[str | None]
+    email_error: Mapped[str | None] = mapped_column(Text)
+    email_sent_at: Mapped[datetime | None]
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]

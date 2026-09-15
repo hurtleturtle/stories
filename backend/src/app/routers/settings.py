@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
@@ -13,14 +14,23 @@ router = APIRouter(prefix="/api/settings", tags=["settings"])
 
 
 async def _get_or_create(db: AsyncSession, user: User) -> UserSettings:
-    if user.settings is not None:
-        return user.settings
+    """Fetch the user's settings row, creating it on first use.
 
-    settings_row = UserSettings(user_id=user.id)
-    db.add(settings_row)
+    The row is loaded with an explicit query rather than through
+    ``user.settings``: the relationship only populates when the User was
+    loaded with it eagerly, and a lazy load here would be emitted from
+    async code, which SQLAlchemy refuses.
+    """
+    result = await db.execute(select(UserSettings).where(UserSettings.user_id == user.id))
+    row = result.scalar_one_or_none()
+    if row is not None:
+        return row
+
+    row = UserSettings(user_id=user.id)
+    db.add(row)
     await db.commit()
-    await db.refresh(user, attribute_names=["settings"])
-    return user.settings
+    await db.refresh(row)
+    return row
 
 
 def _to_out(row: UserSettings) -> UserSettingsOut:
@@ -53,8 +63,12 @@ async def update_settings(
     row.smtp_port = data.smtp_port
     row.smtp_username = data.smtp_username
     row.auto_send_default = data.auto_send_default
+    # An omitted/empty password keeps the stored one, so the client never has
+    # to round-trip the secret back to us just to change another field.
     if data.smtp_password:
         row.smtp_password_encrypted = encrypt_secret(data.smtp_password)
+    elif data.clear_smtp_password:
+        row.smtp_password_encrypted = None
 
     await db.commit()
     await db.refresh(row)

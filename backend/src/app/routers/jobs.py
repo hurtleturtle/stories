@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +10,9 @@ from sqlalchemy.orm import selectinload
 
 from app.db import get_db
 from app.deps import current_user
-from app.models import Job, JobStatus, Template, User
-from app.schemas import JobCreate, JobList, JobOut
+from app.models import EmailStatus, Job, JobStatus, Template, User, UserSettings
+from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut
+from app.services.email import missing_smtp_fields, pick_sendable_artifact
 from app.services.jobs import build_job_config
 from app.worker.celery_app import celery_app
 
@@ -106,6 +107,9 @@ async def retry_job(
     job.chapters_scraped = 0
     job.started_at = None
     job.finished_at = None
+    job.email_status = EmailStatus.not_sent
+    job.email_error = None
+    job.email_sent_at = None
     await db.commit()
     await db.refresh(job)
 
@@ -155,19 +159,51 @@ async def download_artifact(
     )
 
 
-@router.post("/{job_id}/email", status_code=status.HTTP_202_ACCEPTED)
-async def email_artifact(
+@router.post("/{job_id}/email", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
+async def email_job(
     job_id: UUID,
-    artifact_id: UUID,
+    body: JobEmailRequest = Body(default_factory=JobEmailRequest),
+    artifact_id: UUID | None = Query(None, deprecated=True),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(current_user),
-) -> dict:
+) -> Job:
+    """(Re)send a completed job's ebook to the owner's Kindle address.
+
+    The artifact is optional - by default the job's own ebook is sent, which
+    is what "resend this job" means. Settings problems are reported here
+    rather than queued and silently dropped in the worker.
+    """
     job = await _get_owned_job(db, user, job_id)
-    artifact = next((a for a in job.artifacts if a.id == artifact_id), None)
+    if job.status != JobStatus.success:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Only completed jobs can be emailed to Kindle"
+        )
+
+    chosen_id = body.artifact_id or artifact_id
+    if chosen_id is not None:
+        artifact = next((a for a in job.artifacts if a.id == chosen_id), None)
+    else:
+        artifact = pick_sendable_artifact(job.artifacts, job.config.get("ebook_type"))
     if artifact is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No ebook artifact to send")
+
+    settings_row = (
+        await db.execute(select(UserSettings).where(UserSettings.user_id == user.id))
+    ).scalar_one_or_none()
+    missing = missing_smtp_fields(settings_row)
+    if missing:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"Email settings incomplete - set your {', '.join(missing)} on the Settings page",
+        )
+
+    job.email_status = EmailStatus.pending
+    job.email_error = None
+    job.email_recipient = settings_row.kindle_address if settings_row else None
+    await db.commit()
+    await db.refresh(job)
 
     celery_app.send_task(
         "app.worker.tasks.email_artifact_task", args=[str(job.id), str(artifact.id)]
     )
-    return {"status": "queued"}
+    return job

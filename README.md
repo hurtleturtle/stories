@@ -29,6 +29,20 @@ load the site templates below.
 - `docker-compose.yml` - postgres, redis, api, worker (with Calibre installed) and
   the built frontend behind nginx.
 
+## Send to Kindle
+
+Per-user email settings live on the Settings page and are stored in the
+`user_settings` table; the SMTP password is encrypted at rest with a key derived
+from `SECRET_KEY`, and is never returned by the API. `SMTP username` is what the
+app authenticates as, which can differ from the send-from address.
+
+A job can email its ebook automatically when it finishes ("Email to Kindle when
+done", defaulted from the `Email new jobs to Kindle by default` setting). A
+completed job can also be **resent** at any time from its detail page, which is
+useful when delivery failed or the book never showed up on the device. The job
+records the outcome - recipient, timestamp and any SMTP error - so a failed send
+is visible rather than buried in the log.
+
 ## Templates
 
 A template is a set of CSS selectors for one site:
@@ -58,6 +72,14 @@ uv run story-scraper -i royalroad -u <chapter-url> -t "My Book"
 cd backend
 uv run pytest
 uv run ruff check .
+```
+
+The API tests need a Postgres (the models use JSONB and native enums). They skip
+unless you point them at a throwaway database, which they create and drop tables
+in on every test:
+
+```
+TEST_DATABASE_URL=postgresql://story:story@localhost:5432/story_test uv run pytest
 ```
 
 ## Deploying
