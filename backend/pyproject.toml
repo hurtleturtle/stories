@@ -1,6 +1,6 @@
 [project]
 name = "story-scraper"
-version = "0.2.0"
+version = "0.3.0"
 description = "Scrape web serials, convert them to ebooks and send them to Kindle"
 authors = [{ name = "Jono Nicholas" }]
 requires-python = ">=3.12"
