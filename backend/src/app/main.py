@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, jobs, settings, templates
+from app.routers import admin, auth, jobs, settings, templates
 
 app = FastAPI(title="Story Scraper")
 
@@ -21,6 +21,7 @@ app.include_router(auth.router)
 app.include_router(templates.router)
 app.include_router(settings.router)
 app.include_router(jobs.router)
+app.include_router(admin.router)
 
 
 @app.get("/api/health")

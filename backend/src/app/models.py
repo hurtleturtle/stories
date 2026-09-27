@@ -30,6 +30,11 @@ class EmailStatus(enum.StrEnum):
     failed = "failed"
 
 
+class UserRole(enum.StrEnum):
+    user = "user"
+    admin = "admin"
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -37,6 +42,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(unique=True, index=True)
     hashed_password: Mapped[str]
     is_active: Mapped[bool] = mapped_column(default=True)
+    role: Mapped[UserRole] = mapped_column(
+        default=UserRole.user, server_default=UserRole.user.value
+    )
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     settings: Mapped[UserSettings | None] = relationship(
@@ -64,6 +72,16 @@ class UserSettings(Base):
     auto_send_default: Mapped[bool] = mapped_column(default=False)
 
     user: Mapped[User] = relationship(back_populates="settings")
+
+
+class AppSettings(Base):
+    """Instance-wide settings admins can change at runtime. A single row,
+    ``id=1``, created on first read - see ``app.services.app_settings``."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    allow_registration: Mapped[bool]
 
 
 class Template(Base):

@@ -5,9 +5,9 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
-from app.models import EmailStatus, JobStatus
+from app.models import EmailStatus, JobStatus, UserRole
 
 
 class UserCreate(BaseModel):
@@ -20,7 +20,38 @@ class UserOut(BaseModel):
 
     id: UUID
     email: str
+    role: UserRole
+    is_active: bool
     created_at: datetime
+
+
+class RegistrationStatus(BaseModel):
+    open: bool
+
+
+class AdminUserOut(UserOut):
+    job_count: int
+    template_count: int
+
+
+class AdminUserList(BaseModel):
+    items: list[AdminUserOut]
+    total: int
+
+
+class AdminUserUpdate(BaseModel):
+    """Fields an admin can change on an account. Omitted fields are left alone."""
+
+    email: EmailStr | None = None
+    role: UserRole | None = None
+    is_active: bool | None = None
+    password: str | None = Field(None, min_length=8)
+
+
+class AppSettingsIO(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    allow_registration: bool
 
 
 class Token(BaseModel):

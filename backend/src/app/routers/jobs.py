@@ -14,6 +14,7 @@ from app.models import EmailStatus, Job, JobStatus, Template, User, UserSettings
 from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut
 from app.services.email import missing_smtp_fields, pick_sendable_artifact
 from app.services.jobs import build_job_config
+from app.services.storage import remove_job_files
 from app.worker.celery_app import celery_app
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
@@ -140,6 +141,7 @@ async def delete_job(
     job = await _get_owned_job(db, user, job_id)
     await db.delete(job)
     await db.commit()
+    remove_job_files(job.owner_id, job.id)
 
 
 @router.get("/{job_id}/artifacts/{artifact_id}")

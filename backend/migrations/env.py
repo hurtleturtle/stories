@@ -7,7 +7,7 @@ from sqlalchemy import engine_from_config, pool
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from app.db import Base  # noqa: E402
-from app.models import Artifact, Job, Template, User, UserSettings  # noqa: E402, F401
+from app.models import AppSettings, Artifact, Job, Template, User, UserSettings  # noqa: E402, F401
 from story_scraper.config import settings as app_settings  # noqa: E402
 
 config = context.config
