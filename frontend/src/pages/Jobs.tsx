@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { listJobs } from "../api/endpoints";
 import type { JobStatus } from "../api/types";
 
 const ACTIVE_STATUSES: JobStatus[] = ["pending", "running"];
 
 export default function Jobs() {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ["jobs"],
     queryFn: () => listJobs(),
@@ -17,9 +18,14 @@ export default function Jobs() {
 
   return (
     <div>
-      <h1>Jobs</h1>
+      <div className="row-between page-header">
+        <h1>Jobs</h1>
+        <button className="primary" type="button" onClick={() => navigate("/jobs/new")}>
+          + New job
+        </button>
+      </div>
       {isLoading && <p>Loading...</p>}
-      {data && data.items.length === 0 && <p>No jobs yet. Start one from "New job".</p>}
+      {data && data.items.length === 0 && <p>No jobs yet. Start one with "+ New job".</p>}
       {data && data.items.length > 0 && (
         <div className="table-wrap">
           <table>
