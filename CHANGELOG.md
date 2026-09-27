@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.5.0](https://github.com/hurtleturtle/stories/compare/v0.4.0...v0.5.0) (2026-09-27)
+
+
+### Features
+
+* **frontend:** add "+ New job" button to the Jobs page header ([be39ef6](https://github.com/hurtleturtle/stories/commit/be39ef6382c4456806d939a6bed732c71f70a4c4))
+* **frontend:** Lilac/Dusk light and dark themes, full-screen mobile menu ([35d73cc](https://github.com/hurtleturtle/stories/commit/35d73cc0b07f398343ae1a879d881e8d3894830d))
+* **frontend:** plus icon on New job button, fit the jobs table on phones ([2872632](https://github.com/hurtleturtle/stories/commit/28726323dc219e96d788b9ef5e0a0536950b9c75))
+
 ## [0.4.0](https://github.com/hurtleturtle/stories/compare/v0.3.0...v0.4.0) (2026-09-27)
 
 
