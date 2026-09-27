@@ -18,6 +18,11 @@ docker compose up --build
 Register an account, then use "Import built-in templates" on the Templates page to
 load the site templates below.
 
+The first account registered is the admin. Admins get a **Users** page where they
+can see every account, change emails, roles and passwords, disable or delete
+accounts, and open or close registration. The first account can always be
+registered, even with registration closed, so a fresh install is never locked out.
+
 ## Architecture
 
 - `backend/src/story_scraper` - the scraper library (CSS-selector based chapter

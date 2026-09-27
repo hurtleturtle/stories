@@ -94,3 +94,35 @@ export interface UserSettings {
   smtp_password_set: boolean;
   auto_send_default: boolean;
 }
+
+export type UserRole = "user" | "admin";
+
+export interface User {
+  id: string;
+  email: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface AdminUser extends User {
+  job_count: number;
+  template_count: number;
+}
+
+export interface AdminUserList {
+  items: AdminUser[];
+  total: number;
+}
+
+/** Fields an admin can change on an account. Omitted fields are left alone. */
+export interface AdminUserUpdate {
+  email?: string;
+  role?: UserRole;
+  is_active?: boolean;
+  password?: string;
+}
+
+export interface AppSettings {
+  allow_registration: boolean;
+}

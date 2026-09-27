@@ -1,6 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { login as loginRequest, register as registerRequest } from "../api/endpoints";
+import {
+  getRegistrationOpen,
+  login as loginRequest,
+  register as registerRequest,
+} from "../api/endpoints";
 import { setToken } from "../api/client";
 
 export default function Register() {
@@ -9,6 +14,7 @@ export default function Register() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { data: open } = useQuery({ queryKey: ["registration-open"], queryFn: getRegistrationOpen });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,6 +33,18 @@ export default function Register() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (open === false) {
+    return (
+      <div className="content auth-page">
+        <h1>Register</h1>
+        <p>Registration is closed. Ask an admin to reopen it.</p>
+        <p>
+          Already have an account? <Link to="/login">Log in</Link>
+        </p>
+      </div>
+    );
   }
 
   return (

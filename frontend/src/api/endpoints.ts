@@ -1,10 +1,15 @@
 import { api } from "./client";
 import type {
+  AdminUser,
+  AdminUserList,
+  AdminUserUpdate,
+  AppSettings,
   Job,
   JobCreateInput,
   JobList,
   Template,
   TemplateInput,
+  User,
   UserSettings,
   UserSettingsInput,
 } from "./types";
@@ -21,6 +26,41 @@ export async function login(email: string, password: string): Promise<string> {
 
 export async function register(email: string, password: string): Promise<void> {
   await api.post("/auth/register", { email, password });
+}
+
+export async function getMe(): Promise<User> {
+  const { data } = await api.get("/auth/me");
+  return data;
+}
+
+/** Whether new accounts can currently be created. Needs no login. */
+export async function getRegistrationOpen(): Promise<boolean> {
+  const { data } = await api.get("/auth/registration");
+  return data.open;
+}
+
+export async function listUsers(q?: string): Promise<AdminUserList> {
+  const { data } = await api.get("/admin/users", { params: { limit: 200, ...(q ? { q } : {}) } });
+  return data;
+}
+
+export async function updateUser(id: string, input: AdminUserUpdate): Promise<AdminUser> {
+  const { data } = await api.patch(`/admin/users/${id}`, input);
+  return data;
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  await api.delete(`/admin/users/${id}`);
+}
+
+export async function getAppSettings(): Promise<AppSettings> {
+  const { data } = await api.get("/admin/settings");
+  return data;
+}
+
+export async function updateAppSettings(input: AppSettings): Promise<AppSettings> {
+  const { data } = await api.put("/admin/settings", input);
+  return data;
 }
 
 export async function listTemplates(): Promise<Template[]> {
