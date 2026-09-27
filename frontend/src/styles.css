@@ -172,6 +172,10 @@ a {
   margin: 3rem auto;
 }
 
+.show-sm {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .layout {
     flex-direction: column;
@@ -259,6 +263,20 @@ a {
     margin: 1rem auto;
   }
 
+  /* Secondary table detail is dropped or shortened so tables fit a phone. */
+  .hide-sm {
+    display: none;
+  }
+
+  .show-sm {
+    display: inline;
+  }
+
+  table th,
+  table td {
+    padding: 0.5rem 0.4rem;
+  }
+
   form {
     max-width: 100%;
   }
@@ -328,6 +346,12 @@ button.primary {
   cursor: pointer;
   font-size: 0.95rem;
   width: fit-content;
+}
+
+button.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 button.primary:disabled {
