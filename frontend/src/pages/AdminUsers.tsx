@@ -142,6 +142,7 @@ export default function AdminUsers() {
                     <td>
                       <select
                         value={u.role}
+                        style={{ width: "auto" }}
                         disabled={isLastAdmin(u) || updateMutation.isPending}
                         title={isLastAdmin(u) ? "The last active admin must stay an admin" : ""}
                         onChange={(e) =>
