@@ -1,13 +1,19 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { clearToken } from "../api/client";
+import { useMe } from "../hooks/useMe";
 
 export default function Layout() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: me } = useMe();
   const [menuOpen, setMenuOpen] = useState(false);
 
   function logout() {
     clearToken();
+    // Otherwise the next person to log in here would briefly see this user's data.
+    queryClient.clear();
     navigate("/login");
   }
 
@@ -45,6 +51,11 @@ export default function Layout() {
         <NavLink to="/settings" onClick={closeMenu}>
           Settings
         </NavLink>
+        {me?.role === "admin" && (
+          <NavLink to="/admin/users" onClick={closeMenu}>
+            Users
+          </NavLink>
+        )}
         <button onClick={logout} style={{ marginTop: "auto" }}>
           Log out
         </button>

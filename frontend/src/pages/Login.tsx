@@ -1,6 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { login as loginRequest } from "../api/endpoints";
+import { getRegistrationOpen, login as loginRequest } from "../api/endpoints";
 import { setToken } from "../api/client";
 
 export default function Login() {
@@ -9,6 +10,10 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { data: registrationOpen } = useQuery({
+    queryKey: ["registration-open"],
+    queryFn: getRegistrationOpen,
+  });
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,9 +52,11 @@ export default function Login() {
           {loading ? "Logging in..." : "Log in"}
         </button>
       </form>
-      <p>
-        No account? <Link to="/register">Register</Link>
-      </p>
+      {registrationOpen && (
+        <p>
+          No account? <Link to="/register">Register</Link>
+        </p>
+      )}
     </div>
   );
 }
