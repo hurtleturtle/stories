@@ -3,7 +3,25 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f7f5fb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#16131c" media="(prefers-color-scheme: dark)" />
     <title>Story Scraper</title>
+    <script>
+      // Apply a saved light/dark choice before first paint to avoid a flash
+      // of the wrong theme. See src/hooks/useTheme.ts.
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          if (t === "light" || t === "dark") {
+            document.documentElement.dataset.theme = t;
+            var c = t === "dark" ? "#16131c" : "#f7f5fb";
+            document.querySelectorAll('meta[name="theme-color"]').forEach(function (m) {
+              m.content = c;
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

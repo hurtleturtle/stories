@@ -1,14 +1,68 @@
 :root {
-  color-scheme: light dark;
-  --bg: #0f1115;
-  --panel: #171a21;
-  --border: #2a2e37;
-  --text: #e6e8eb;
-  --muted: #9aa1ac;
-  --accent: #5b8cff;
-  --danger: #e5534b;
-  --success: #3fb950;
+  color-scheme: light;
+  /* Light theme: Lilac */
+  --bg: #f7f5fb;
+  --panel: #ffffff;
+  --border: #e2dcee;
+  --text: #231d2e;
+  --muted: #6b6280;
+  --accent: #6d4fd8;
+  --accent-contrast: #ffffff;
+  --danger: #c0362c;
+  --success: #1a7f37;
+  --badge-pending-bg: #f8eed0;
+  --badge-pending-fg: #8a6300;
+  --badge-running-bg: #dde9fb;
+  --badge-running-fg: #1f5fc4;
+  --badge-success-bg: #dcf3e3;
+  --badge-failed-bg: #fbe0de;
+  --badge-cancelled-bg: #ece8f2;
+  --topbar-h: 3.25rem;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Dark theme: Dusk. Applied when the OS prefers dark (unless the user forced
+   light), or when the user picked dark explicitly. Keep both blocks in sync. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #16131c;
+    --panel: #1f1a28;
+    --border: #332b40;
+    --text: #ece8f2;
+    --muted: #9d94ad;
+    --accent: #b18cff;
+    --accent-contrast: #16131c;
+    --danger: #ff7b72;
+    --success: #4ac26b;
+    --badge-pending-bg: #3a351a;
+    --badge-pending-fg: #e3c55a;
+    --badge-running-bg: #1a2c3a;
+    --badge-running-fg: #6cb6ff;
+    --badge-success-bg: #123a1c;
+    --badge-failed-bg: #3a1414;
+    --badge-cancelled-bg: #2a2433;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16131c;
+  --panel: #1f1a28;
+  --border: #332b40;
+  --text: #ece8f2;
+  --muted: #9d94ad;
+  --accent: #b18cff;
+  --accent-contrast: #16131c;
+  --danger: #ff7b72;
+  --success: #4ac26b;
+  --badge-pending-bg: #3a351a;
+  --badge-pending-fg: #e3c55a;
+  --badge-running-bg: #1a2c3a;
+  --badge-running-fg: #6cb6ff;
+  --badge-success-bg: #123a1c;
+  --badge-failed-bg: #3a1414;
+  --badge-cancelled-bg: #2a2433;
 }
 
 * {
@@ -34,10 +88,6 @@ a {
   display: none;
 }
 
-.scrim {
-  display: none;
-}
-
 .sidebar {
   width: 200px;
   flex-shrink: 0;
@@ -46,6 +96,38 @@ a {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.theme-switch {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.sidebar .theme-switch button {
+  flex: 1;
+  border-radius: 0;
+  text-align: center;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.sidebar .theme-switch button[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .sidebar-title {
@@ -66,8 +148,13 @@ a {
 }
 
 .sidebar a:hover,
-.sidebar button:hover {
+.sidebar button:hover,
+.sidebar a.active {
   background: var(--panel);
+}
+
+.sidebar a.active {
+  color: var(--accent);
 }
 
 .content {
@@ -85,6 +172,10 @@ a {
   margin: 3rem auto;
 }
 
+.show-sm {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .layout {
     flex-direction: column;
@@ -96,8 +187,9 @@ a {
     justify-content: space-between;
     position: sticky;
     top: 0;
-    z-index: 20;
-    padding: 0.75rem 1rem;
+    z-index: 40;
+    height: var(--topbar-h);
+    padding: 0 1rem;
     background: var(--panel);
     border-bottom: 1px solid var(--border);
   }
@@ -113,30 +205,49 @@ a {
     cursor: pointer;
   }
 
-  .scrim {
-    display: block;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 25;
-  }
-
+  /* Full-screen menu under the top bar. Anchored with top/bottom rather than
+     100vh, which on phones includes the area behind the browser toolbar and
+     pushed "Log out" off-screen. */
   .sidebar {
     position: fixed;
-    top: 0;
+    top: var(--topbar-h);
     left: 0;
-    height: 100vh;
-    width: 240px;
-    background: var(--panel);
-    border-right: 1px solid var(--border);
-    transform: translateX(-100%);
-    transition: transform 0.2s ease-out;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    gap: 0.25rem;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-right: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-0.5rem);
+    transition:
+      opacity 0.15s ease-out,
+      transform 0.15s ease-out,
+      visibility 0.15s;
     z-index: 30;
-    overflow-y: auto;
   }
 
   .sidebar.open {
-    transform: translateX(0);
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+
+  .sidebar-footer {
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .sidebar .theme-switch button {
+    padding: 0.55rem 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  body.menu-open {
+    overflow: hidden;
   }
 
   .sidebar-title {
@@ -150,6 +261,20 @@ a {
 
   .auth-page {
     margin: 1rem auto;
+  }
+
+  /* Secondary table detail is dropped or shortened so tables fit a phone. */
+  .hide-sm {
+    display: none;
+  }
+
+  .show-sm {
+    display: inline;
+  }
+
+  table th,
+  table td {
+    padding: 0.5rem 0.4rem;
   }
 
   form {
@@ -214,13 +339,19 @@ select {
 
 button.primary {
   background: var(--accent);
-  color: white;
+  color: var(--accent-contrast);
   border: none;
   padding: 0.55rem 1rem;
   border-radius: 6px;
   cursor: pointer;
   font-size: 0.95rem;
   width: fit-content;
+}
+
+button.with-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 button.primary:disabled {
@@ -259,27 +390,27 @@ td {
 }
 
 .badge-pending {
-  background: #3a3d1a;
-  color: #d9d857;
+  background: var(--badge-pending-bg);
+  color: var(--badge-pending-fg);
 }
 
 .badge-running {
-  background: #1a2c3a;
-  color: #5bb0ff;
+  background: var(--badge-running-bg);
+  color: var(--badge-running-fg);
 }
 
 .badge-success {
-  background: #123a1c;
+  background: var(--badge-success-bg);
   color: var(--success);
 }
 
 .badge-failed {
-  background: #3a1414;
+  background: var(--badge-failed-bg);
   color: var(--danger);
 }
 
 .badge-cancelled {
-  background: #2a2e37;
+  background: var(--badge-cancelled-bg);
   color: var(--muted);
 }
 
@@ -299,6 +430,15 @@ td {
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
+}
+
+.page-header {
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
 }
 
 pre.log {
