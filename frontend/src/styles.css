@@ -236,7 +236,10 @@ a {
     transform: none;
   }
 
+  /* Straight after the links rather than pinned to the bottom, where the
+     browser toolbar can still cover it. */
   .sidebar-footer {
+    margin-top: 0.75rem;
     padding-top: 0.75rem;
     border-top: 1px solid var(--border);
   }
