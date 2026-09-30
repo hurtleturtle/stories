@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_db
@@ -25,6 +26,18 @@ async def _get_owned(db: AsyncSession, user: User, template_id: UUID) -> Templat
     return template
 
 
+async def _commit_unique_name(db: AsyncSession, name: str) -> None:
+    """Commit, turning a clash on the per-user unique name into a 409 rather
+    than an unhandled IntegrityError (a 500)."""
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f'You already have a template called "{name}"'
+        ) from None
+
+
 @router.get("", response_model=list[TemplateOut])
 async def list_templates(
     db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
@@ -41,7 +54,7 @@ async def create_template(
 ) -> Template:
     template = Template(owner_id=user.id, **data.model_dump())
     db.add(template)
-    await db.commit()
+    await _commit_unique_name(db, data.name)
     await db.refresh(template)
     return template
 
@@ -63,7 +76,7 @@ async def update_template(
     template = await _get_owned(db, user, template_id)
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(template, key, value)
-    await db.commit()
+    await _commit_unique_name(db, template.name)
     await db.refresh(template)
     return template
 
