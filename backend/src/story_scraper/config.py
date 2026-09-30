@@ -2,8 +2,34 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import re
+from typing import Annotated
+
+from pydantic import BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Used as a file extension and passed to Calibre, so it must not be able to
+# carry a path or option. Calibre decides which formats it can actually write.
+EbookType = Annotated[
+    str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=r"^[A-Za-z0-9]{1,10}$")
+]
+
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\x00-\x1f\x7f/\\:*?"<>|]')
+_MAX_FILENAME_BYTES = 200  # leaves room for an extension under the usual 255 limit
+
+
+def safe_filename(name: str, fallback: str = "book") -> str:
+    """Turn arbitrary text (a story title) into one safe path component.
+
+    Path separators and characters some filesystems reject are dropped,
+    whitespace becomes underscores, and leading/trailing dots go so the
+    result can be neither hidden nor `..`. Length is capped in bytes, since
+    non-Latin titles take several bytes per character.
+    """
+    cleaned = re.sub(r"\s", "_", name.strip())  # before the strip below, which drops \t and \n
+    cleaned = _UNSAFE_FILENAME_CHARS.sub("", cleaned).strip(".")
+    cleaned = cleaned.encode("utf-8")[:_MAX_FILENAME_BYTES].decode("utf-8", errors="ignore")
+    return cleaned or fallback
 
 
 class StoryConfig(BaseModel):
@@ -17,12 +43,12 @@ class StoryConfig(BaseModel):
     detect_title: str | None = None
     style: str = "white-style.css"
     scripts: list[str] = Field(default_factory=list)
-    ebook_type: str = "epub"
+    ebook_type: EbookType = "epub"
     num_chapters: int | None = None
     verbosity: int = 0
 
     def resolved_filename(self) -> str:
-        return self.filename or self.title.replace(" ", "_")
+        return safe_filename(self.filename or self.title)
 
 
 class Settings(BaseSettings):

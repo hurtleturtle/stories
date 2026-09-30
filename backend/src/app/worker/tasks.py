@@ -3,12 +3,13 @@ finished ebook to Kindle."""
 
 from __future__ import annotations
 
+import logging
 import traceback
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.db import get_sync_db
 from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
@@ -19,6 +20,8 @@ from story_scraper.config import StoryConfig
 from story_scraper.converter import convert
 from story_scraper.mailer import send_ebook
 from story_scraper.scraper import Story
+
+logger = logging.getLogger(__name__)
 
 CONTENT_TYPES = {
     "html": "text/html",
@@ -43,19 +46,34 @@ def _append_log(job: Job, line: str) -> None:
     job.log = (job.log or "") + f"\n{line}"
 
 
+def _claim_job(session, job_id: UUID, task_id: str | None) -> bool:
+    """Move a pending job to running, atomically. False if it was not pending
+    - cancelled while queued, or already claimed by another delivery of the
+    same task (a redelivery after a broker visibility timeout, say)."""
+    claimed = session.execute(
+        update(Job)
+        .where(Job.id == job_id, Job.status == JobStatus.pending)
+        .values(status=JobStatus.running, started_at=datetime.now(UTC), celery_task_id=task_id)
+    )
+    session.commit()
+    return claimed.rowcount == 1
+
+
 @celery_app.task(bind=True)
 def run_story_job(self, job_id: str) -> None:
     session = get_sync_db()
     try:
-        job = session.get(Job, UUID(job_id))
-        if job is None:
+        if not _claim_job(session, UUID(job_id), self.request.id):
+            logger.info("Not running job %s: it is no longer pending", job_id)
             return
+        _run_claimed_job(session, job_id)
+    finally:
+        session.close()
 
-        job.status = JobStatus.running
-        job.started_at = datetime.now(UTC)
-        job.celery_task_id = self.request.id
-        session.commit()
 
+def _run_claimed_job(session, job_id: str) -> None:
+    try:
+        job = session.get(Job, UUID(job_id))
         config = StoryConfig(**job.config)
         log_lines: list[str] = []
 
@@ -90,7 +108,6 @@ def run_story_job(self, job_id: str) -> None:
         if job is not None:
             job.finished_at = datetime.now(UTC)
             session.commit()
-        session.close()
 
 
 def _user_settings(session, owner_id: UUID) -> UserSettings | None:

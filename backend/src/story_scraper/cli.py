@@ -68,7 +68,12 @@ def main(argv: list[str] | None = None) -> None:
     ebook_name = f"{config.resolved_filename()}.{config.ebook_type}"
     ebook_file = output_dir / config.ebook_type / ebook_name
 
-    with Story(config, progress=lambda n, u: logging.info("Chapter %d: %s", n, u)) as story:
+    # Running locally, so scraping a private-network address is the user's call.
+    with Story(
+        config,
+        progress=lambda n, u: logging.info("Chapter %d: %s", n, u),
+        allow_private_hosts=True,
+    ) as story:
         if not args.no_download:
             html_file = story.write(output_dir / "html")
         else:

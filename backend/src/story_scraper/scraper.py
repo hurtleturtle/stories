@@ -7,12 +7,13 @@ import re
 from collections.abc import Callable, Iterator
 from importlib import resources
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urldefrag, urljoin, urlparse
 
 import httpx
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from story_scraper.config import StoryConfig
+from story_scraper.urlsafety import assert_public_url
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,12 @@ class ChapterNotFoundError(RuntimeError):
     """Raised when the configured container selector matches nothing."""
 
 
+def _ends_story(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (404, 410)
+    return isinstance(exc, ChapterNotFoundError)
+
+
 class Story:
     """Fetches chapters from a serial and assembles them into one HTML document."""
 
@@ -38,16 +45,23 @@ class Story:
         config: StoryConfig,
         client: httpx.Client | None = None,
         progress: ProgressCallback | None = None,
+        allow_private_hosts: bool = False,
     ) -> None:
+        """`allow_private_hosts` skips the check that stops the scraper
+        fetching internal addresses. It only applies to the client this
+        creates; a client passed in is used as given."""
         self.config = config
         self.progress = progress or (lambda count, message: None)
         self._owns_client = client is None
+        # Runs for every request, so redirects and next links are covered too.
+        hooks = [] if allow_private_hosts else [lambda request: assert_public_url(str(request.url))]
         self.client = client or httpx.Client(
-            headers={"User-Agent": USER_AGENT}, timeout=30.0, follow_redirects=True
+            headers={"User-Agent": USER_AGENT},
+            timeout=30.0,
+            follow_redirects=True,
+            event_hooks={"request": hooks},
         )
 
-        parsed = urlparse(config.url)
-        self.base_url = f"{parsed.scheme}://{parsed.netloc}"
         self.current_chapter: int | str = 0
         self.doc = self._load_template()
 
@@ -67,15 +81,18 @@ class Story:
         return BeautifulSoup(html, features="lxml")
 
     def fetch(self, url: str, retries: int = 3) -> str:
+        return self.fetch_response(url, retries).text
+
+    def fetch_response(self, url: str, retries: int = 3) -> httpx.Response:
         last_error: Exception | None = None
         for attempt in range(retries):
             try:
                 response = self.client.get(url)
                 response.raise_for_status()
-                return response.text
+                return response
             except httpx.HTTPStatusError as exc:
                 last_error = exc
-                if exc.response.status_code == 404:
+                if exc.response.status_code in (404, 410):
                     raise
                 logger.warning(
                     "Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc
@@ -126,35 +143,53 @@ class Story:
         assert self.doc.body is not None
         self.doc.body.append(chapter)
 
-    def _next_url(self, soup: BeautifulSoup) -> str | None:
+    def _next_url(self, soup: BeautifulSoup, page_url: str) -> str | None:
         matches = soup.select(self.config.next_selector)
         if not matches:
             logger.info("Could not locate next-chapter link with %r", self.config.next_selector)
             return None
 
         href = matches[0].get("href")
-        if not href:
-            return None
         if isinstance(href, list):
             href = href[0]
-        if href.startswith("http"):
-            return href
-        return self.base_url + href
+        href = (href or "").strip()
+        # A disabled "next" button is usually href="#" or javascript:void(0).
+        if not href or href.startswith("#"):
+            return None
+
+        target = urljoin(page_url, href)
+        if urlparse(target).scheme not in ("http", "https"):
+            return None
+        return urldefrag(target).url
 
     def iter_chapters(self) -> Iterator[tuple[int, str]]:
-        """Yield (chapter_count, url) for each chapter fetched, starting at 1."""
+        """Yield (chapter_count, url) for each chapter fetched, starting at 1.
+
+        Once at least one chapter has been fetched, a "next" link that leads
+        nowhere (404/410, or a page without chapter content) is the end of
+        the story rather than a failure, so the chapters gathered so far are
+        kept. Problems with the first page still raise.
+        """
         url: str | None = self.config.url
         count = 0
 
         while url:
-            page = self.fetch(url)
-            soup = BeautifulSoup(page, features="lxml")
-            self._append_chapter(soup)
+            try:
+                response = self.fetch_response(url)
+                soup = BeautifulSoup(response.text, features="lxml")
+                self._append_chapter(soup)
+            except (ChapterNotFoundError, httpx.HTTPStatusError) as exc:
+                if count == 0 or not _ends_story(exc):
+                    raise
+                logger.warning("Stopping after %d chapters: %s", count, exc)
+                return
+
             count += 1
             yield count, url
             if self.config.num_chapters and count >= self.config.num_chapters:
                 break
-            url = self._next_url(soup)
+            # Join against where we actually ended up, in case of redirects.
+            url = self._next_url(soup, str(response.url))
 
     def _apply_style(self) -> None:
         style_path = resources.files("story_scraper.assets") / "styles" / self.config.style

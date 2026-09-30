@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import EmailStatus, JobStatus, UserRole
+from story_scraper.config import EbookType
 
 
 class UserCreate(BaseModel):
@@ -72,7 +73,7 @@ class TemplateBase(BaseModel):
 
 
 class TemplateCreate(TemplateBase):
-    pass
+    ebook_type: EbookType = "epub"
 
 
 class TemplateUpdate(BaseModel):
@@ -83,7 +84,7 @@ class TemplateUpdate(BaseModel):
     detect_title: str | None = None
     style: str | None = None
     scripts: list[str] | None = None
-    ebook_type: str | None = None
+    ebook_type: EbookType | None = None
     extra: dict | None = None
 
 
@@ -127,7 +128,7 @@ class JobCreate(BaseModel):
     detect_title: str | None = None
     style: str | None = None
     scripts: list[str] | None = None
-    ebook_type: str | None = None
+    ebook_type: EbookType | None = None
     num_chapters: int | None = None
     send_email: bool = False
 

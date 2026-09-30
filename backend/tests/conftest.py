@@ -10,6 +10,7 @@ Without it they skip, so the default `uv run pytest` still needs no DB.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from collections.abc import AsyncIterator
 from uuid import uuid4
@@ -25,6 +26,25 @@ if TEST_DATABASE_URL:
     os.environ["DATABASE_URL"] = f"postgresql+asyncpg://{_bare}"
     os.environ["DATABASE_URL_SYNC"] = f"postgresql+psycopg://{_bare}"
     os.environ.setdefault("SECRET_KEY", "test-secret-key")
+
+PUBLIC_TEST_ADDRESS = "93.184.216.34"
+
+
+@pytest.fixture(autouse=True)
+def stub_dns(monkeypatch):
+    """Name lookups for the scraper's internal-address check, without a real
+    resolver: IP literals stand for themselves, any other host is public.
+    Tests that need a host to be internal override this themselves."""
+
+    def fake_resolve_host(host: str, port: int | None) -> list[str]:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return [PUBLIC_TEST_ADDRESS]
+        return [host]
+
+    monkeypatch.setattr("story_scraper.urlsafety.resolve_host", fake_resolve_host)
+
 
 @pytest.fixture
 async def db_engine():
@@ -50,15 +70,25 @@ async def db_engine():
         await async_engine.dispose()
 
 
+class QueuedTasks(list):
+    """(name, args) for each dispatch; `.kwargs` holds the matching send_task
+    keyword arguments (task_id and so on)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.kwargs: list[dict] = []
+
+
 @pytest.fixture
-async def queued_tasks(monkeypatch) -> list[tuple]:
+async def queued_tasks(monkeypatch) -> QueuedTasks:
     """Capture Celery dispatches instead of needing a live broker."""
     from app.worker import celery_app as celery_module
 
-    sent: list[tuple] = []
+    sent = QueuedTasks()
 
     def fake_send_task(name, args=None, **kwargs):
         sent.append((name, list(args or [])))
+        sent.kwargs.append(kwargs)
 
     monkeypatch.setattr(celery_module.celery_app, "send_task", fake_send_task)
     return sent
