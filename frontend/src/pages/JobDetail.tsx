@@ -172,7 +172,7 @@ export default function JobDetail() {
 
       <div style={{ display: "flex", gap: "0.5rem" }}>
         {job.status === "pending" && (
-          <button className="secondary" onClick={() => cancelMutation.mutate()}>
+          <button className="secondary danger" onClick={() => cancelMutation.mutate()}>
             <LuCircleX />
             Cancel
           </button>

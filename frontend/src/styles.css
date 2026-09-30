@@ -17,6 +17,13 @@
   --badge-success-bg: #dcf3e3;
   --badge-failed-bg: #fbe0de;
   --badge-cancelled-bg: #ece8f2;
+  /* Secondary buttons: a soft accent tint, and soft red for destructive ones. */
+  --tint-bg: #ece6fb;
+  --tint-bg-hover: #e1d7f9;
+  --tint-fg: #5a3fc0;
+  --danger-bg: #fbe0de;
+  --danger-bg-hover: #f7cfcb;
+  --danger-fg: #a8291f;
   --topbar-h: 3.25rem;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
@@ -42,6 +49,12 @@
     --badge-success-bg: #123a1c;
     --badge-failed-bg: #3a1414;
     --badge-cancelled-bg: #2a2433;
+    --tint-bg: #2c2341;
+    --tint-bg-hover: #372b52;
+    --tint-fg: #cdb6ff;
+    --danger-bg: #3d1a1a;
+    --danger-bg-hover: #4d2121;
+    --danger-fg: #ff9a93;
   }
 }
 
@@ -63,6 +76,12 @@
   --badge-success-bg: #123a1c;
   --badge-failed-bg: #3a1414;
   --badge-cancelled-bg: #2a2433;
+  --tint-bg: #2c2341;
+  --tint-bg-hover: #372b52;
+  --tint-fg: #cdb6ff;
+  --danger-bg: #3d1a1a;
+  --danger-bg-hover: #4d2121;
+  --danger-fg: #ff9a93;
 }
 
 * {
@@ -159,8 +178,13 @@ a {
 
 /* An action, not a destination, so it looks like a button rather than a link. */
 .sidebar button.logout {
-  border: 1px solid var(--border);
+  background: var(--tint-bg);
+  color: var(--tint-fg);
   text-align: center;
+}
+
+.sidebar button.logout:hover {
+  background: var(--tint-bg-hover);
 }
 
 .content {
@@ -201,9 +225,9 @@ a {
   }
 
   .menu-toggle {
-    background: none;
-    border: 1px solid var(--border);
-    color: var(--text);
+    background: var(--tint-bg);
+    border: 1px solid transparent;
+    color: var(--tint-fg);
     border-radius: 6px;
     padding: 0.4rem 0.65rem;
     font-size: 0.95rem;
@@ -388,18 +412,33 @@ button svg {
   }
 }
 
-button.primary:disabled {
+button.primary:disabled,
+button.secondary:disabled {
   opacity: 0.6;
   cursor: default;
 }
 
 button.secondary {
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: var(--tint-bg);
+  border: 1px solid transparent;
+  color: var(--tint-fg);
   padding: 0.45rem 0.9rem;
   border-radius: 6px;
   cursor: pointer;
+}
+
+button.secondary:hover:not(:disabled) {
+  background: var(--tint-bg-hover);
+}
+
+/* Actions that delete or stop something. */
+button.secondary.danger {
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+button.secondary.danger:hover:not(:disabled) {
+  background: var(--danger-bg-hover);
 }
 
 table {

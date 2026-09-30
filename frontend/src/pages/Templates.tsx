@@ -62,7 +62,7 @@ export default function Templates() {
                   <td>{t.container}</td>
                   <td>{t.ebook_type}</td>
                   <td>
-                    <button className="secondary" onClick={() => deleteMutation.mutate(t.id)}>
+                    <button className="secondary danger" onClick={() => deleteMutation.mutate(t.id)}>
                       <LuTrash2 />
                       Delete
                     </button>

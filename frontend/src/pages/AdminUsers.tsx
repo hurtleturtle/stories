@@ -179,7 +179,7 @@ export default function AdminUsers() {
                       </button>{" "}
                       {u.id !== me?.id && (
                         <button
-                          className="secondary"
+                          className="secondary danger"
                           onClick={() => onDelete(u)}
                           disabled={deleteMutation.isPending}
                         >
