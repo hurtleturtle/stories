@@ -98,6 +98,14 @@ class Settings(BaseSettings):
 
     # ebook-convert has been seen to hang; without a limit it holds a worker forever.
     conversion_timeout_seconds: int = 30 * 60
+
+    # A running job's worker refreshes jobs.heartbeat_at this often. A job with
+    # no heartbeat for stale_after seconds is taken to have lost its worker and
+    # is failed; the API sweeps for such jobs every sweep_interval seconds.
+    # stale_after must comfortably exceed the heartbeat interval.
+    job_heartbeat_interval_seconds: float = 30
+    job_stale_after_seconds: float = 5 * 60
+    stale_job_sweep_interval_seconds: float = 60
     # How long the broker waits for a task to finish before handing it to
     # another worker. Must exceed the longest scrape, or a long job runs twice.
     broker_visibility_timeout_seconds: int = 12 * 60 * 60

@@ -4,12 +4,15 @@ finished ebook to Kindle."""
 from __future__ import annotations
 
 import logging
+import threading
 import traceback
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 
 from app.db import get_sync_db
 from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
@@ -50,13 +53,53 @@ def _claim_job(session, job_id: UUID, task_id: str | None) -> bool:
     """Move a pending job to running, atomically. False if it was not pending
     - cancelled while queued, or already claimed by another delivery of the
     same task (a redelivery after a broker visibility timeout, say)."""
+    now = datetime.now(UTC)
     claimed = session.execute(
         update(Job)
         .where(Job.id == job_id, Job.status == JobStatus.pending)
-        .values(status=JobStatus.running, started_at=datetime.now(UTC), celery_task_id=task_id)
+        .values(
+            status=JobStatus.running, started_at=now, heartbeat_at=now, celery_task_id=task_id
+        )
     )
+    if claimed.rowcount == 1:
+        # Anything left by an earlier run (a retry after a failed conversion
+        # keeps the scraped HTML) is about to be regenerated under the same
+        # names; without this the job would list each artifact twice.
+        session.execute(delete(Artifact).where(Artifact.job_id == job_id))
     session.commit()
     return claimed.rowcount == 1
+
+
+@contextmanager
+def _heartbeat(job_id: UUID) -> Iterator[None]:
+    """Refresh the job's heartbeat in the background while the body runs.
+
+    A thread, because the main thread can go a long time without touching the
+    database - a slow site, or Calibre for up to the conversion timeout - and
+    a job must not look dead just because it is busy.
+    """
+    stop = threading.Event()
+
+    def beat() -> None:
+        while not stop.wait(settings.job_heartbeat_interval_seconds):
+            try:
+                with get_sync_db() as session:
+                    session.execute(
+                        update(Job)
+                        .where(Job.id == job_id, Job.status == JobStatus.running)
+                        .values(heartbeat_at=datetime.now(UTC))
+                    )
+                    session.commit()
+            except Exception:  # noqa: BLE001 - keep beating through a database blip
+                logger.exception("Could not record heartbeat for job %s", job_id)
+
+    thread = threading.Thread(target=beat, name=f"heartbeat-{job_id}", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop.set()
+        thread.join(timeout=5)
 
 
 @celery_app.task(bind=True)
@@ -66,7 +109,8 @@ def run_story_job(self, job_id: str) -> None:
         if not _claim_job(session, UUID(job_id), self.request.id):
             logger.info("Not running job %s: it is no longer pending", job_id)
             return
-        _run_claimed_job(session, job_id)
+        with _heartbeat(UUID(job_id)):
+            _run_claimed_job(session, job_id)
     finally:
         session.close()
 

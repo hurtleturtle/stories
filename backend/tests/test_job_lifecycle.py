@@ -8,37 +8,9 @@ resulting job state without a broker, network or Calibre.
 import uuid
 
 import pytest
+from jobhelpers import create_job, load_job, set_status
 
 RUN_TASK = "app.worker.tasks.run_story_job"
-
-
-def load_job(job_id: str):
-    from app.db import get_sync_db
-    from app.models import Job
-
-    session = get_sync_db()
-    try:
-        return session.get(Job, uuid.UUID(job_id))
-    finally:
-        session.close()
-
-
-def set_status(job_id: str, status: str) -> None:
-    from app.db import get_sync_db
-    from app.models import Job, JobStatus
-
-    session = get_sync_db()
-    try:
-        session.get(Job, uuid.UUID(job_id)).status = JobStatus(status)
-        session.commit()
-    finally:
-        session.close()
-
-
-async def create_job(auth_client, url="https://example.com/chapter-1") -> dict:
-    resp = await auth_client.post("/api/jobs", json={"url": url})
-    assert resp.status_code == 201, resp.text
-    return resp.json()
 
 
 @pytest.fixture
@@ -49,40 +21,6 @@ def revoked(monkeypatch) -> list[str]:
     calls: list[str] = []
     monkeypatch.setattr(celery_app.control, "revoke", lambda task_id, **kw: calls.append(task_id))
     return calls
-
-
-@pytest.fixture
-def fake_pipeline(monkeypatch, tmp_path):
-    """Replace scraping and conversion in the worker; records what ran."""
-    ran: list[str] = []
-
-    class FakeStory:
-        def __init__(self, config, progress=None):
-            self.config = config
-            self.progress = progress
-
-        def __enter__(self):
-            ran.append("scrape")
-            return self
-
-        def __exit__(self, *exc_info):
-            pass
-
-        def write(self, output_dir):
-            self.progress(1, "https://example.com/chapter-1")
-            html = output_dir / f"{self.config.resolved_filename()}.html"
-            html.write_text("<html></html>")
-            return html
-
-    def fake_convert(html_file, ebook_file, title, timeout=None):
-        ran.append("convert")
-        ebook_file.write_text("ebook")
-        return ebook_file
-
-    monkeypatch.setattr("app.worker.tasks.Story", FakeStory)
-    monkeypatch.setattr("app.worker.tasks.convert", fake_convert)
-    monkeypatch.setattr("app.worker.tasks.job_dir", lambda owner_id, job_id: tmp_path)
-    return ran
 
 
 # --- creating jobs ---------------------------------------------------------

@@ -181,3 +181,37 @@ async def auth_client(client):
     assert resp.status_code == 200, resp.text
     client.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
     return client
+
+
+@pytest.fixture
+def fake_pipeline(monkeypatch, tmp_path):
+    """Replace scraping and conversion in the worker; records what ran."""
+    ran: list[str] = []
+
+    class FakeStory:
+        def __init__(self, config, progress=None):
+            self.config = config
+            self.progress = progress
+
+        def __enter__(self):
+            ran.append("scrape")
+            return self
+
+        def __exit__(self, *exc_info):
+            pass
+
+        def write(self, output_dir):
+            self.progress(1, "https://example.com/chapter-1")
+            html = output_dir / f"{self.config.resolved_filename()}.html"
+            html.write_text("<html></html>")
+            return html
+
+    def fake_convert(html_file, ebook_file, title, timeout=None):
+        ran.append("convert")
+        ebook_file.write_text("ebook")
+        return ebook_file
+
+    monkeypatch.setattr("app.worker.tasks.Story", FakeStory)
+    monkeypatch.setattr("app.worker.tasks.convert", fake_convert)
+    monkeypatch.setattr("app.worker.tasks.job_dir", lambda owner_id, job_id: tmp_path)
+    return ran
