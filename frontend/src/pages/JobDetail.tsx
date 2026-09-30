@@ -26,6 +26,10 @@ const EMAIL_BADGES: Record<EmailStatus, string> = {
   failed: "badge-failed",
 };
 
+function formatSize(bytes: number): string {
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -144,23 +148,27 @@ export default function JobDetail() {
             <table>
               <tbody>
                 {job.artifacts.map((artifact) => (
-                  <tr key={artifact.id}>
-                    <td>{artifact.filename}</td>
-                    <td>{(artifact.size_bytes / 1024).toFixed(1)} KB</td>
-                    <td>
-                      <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
+                  <tr key={artifact.id} className="artifact-row">
+                    <td className="artifact-name">
+                      {artifact.filename}
+                      {/* On phones the size moves under the name to save a column. */}
+                      <div className="show-sm muted">{formatSize(artifact.size_bytes)}</div>
                     </td>
+                    <td className="hide-sm">{formatSize(artifact.size_bytes)}</td>
                     <td>
-                      {completed && artifact.kind !== "html" && (
-                        <button
-                          className="secondary"
-                          onClick={() => emailMutation.mutate(artifact.id)}
-                          disabled={emailMutation.isPending}
-                        >
-                          <LuSend />
-                          Send this
-                        </button>
-                      )}
+                      <div className="artifact-actions">
+                        <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
+                        {completed && artifact.kind !== "html" && (
+                          <button
+                            className="secondary"
+                            onClick={() => emailMutation.mutate(artifact.id)}
+                            disabled={emailMutation.isPending}
+                          >
+                            <LuSend />
+                            Send this
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

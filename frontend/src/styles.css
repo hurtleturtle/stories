@@ -402,6 +402,19 @@ pre.log {
   white-space: pre-wrap;
 }
 
+/* Job artifacts: long generated filenames may break anywhere rather than
+   widen the table. */
+.artifact-name {
+  overflow-wrap: anywhere;
+}
+
+.artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+
 /* Phones. Kept at the end of the file so these overrides win over the base
    rules above; anything placed after this block would undo them. */
 @media (max-width: 768px) {
@@ -504,6 +517,25 @@ pre.log {
 
   .show-sm {
     display: inline;
+  }
+
+  div.show-sm {
+    display: block;
+  }
+
+  /* Each artifact stacks: the name across the full width, its actions below. */
+  .artifact-row td:not(.hide-sm) {
+    display: block;
+    border-bottom: none;
+  }
+
+  .artifact-row td:first-child {
+    padding-bottom: 0.25rem;
+  }
+
+  .artifact-row td:last-child {
+    padding-top: 0;
+    border-bottom: 1px solid var(--border);
   }
 
   table th,
