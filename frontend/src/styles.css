@@ -300,6 +300,8 @@ button.secondary {
   border: 1px solid transparent;
   color: var(--tint-fg);
   padding: 0.45rem 0.9rem;
+  /* Buttons don't inherit the page font size; match primary buttons. */
+  font-size: 0.95rem;
   border-radius: 6px;
   cursor: pointer;
 }
@@ -408,11 +410,15 @@ pre.log {
   overflow-wrap: anywhere;
 }
 
+/* Size and actions keep to one line; the filename column gives way instead. */
+.artifact-size {
+  white-space: nowrap;
+}
+
 .artifact-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 0.5rem 1rem;
+  gap: 0.5rem;
 }
 
 /* Phones. Kept at the end of the file so these overrides win over the base
@@ -536,6 +542,11 @@ pre.log {
   .artifact-row td:last-child {
     padding-top: 0;
     border-bottom: 1px solid var(--border);
+  }
+
+  /* On the narrowest phones Download and Send this take a line each. */
+  .artifact-actions {
+    flex-wrap: wrap;
   }
 
   table th,

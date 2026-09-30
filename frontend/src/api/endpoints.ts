@@ -4,6 +4,7 @@ import type {
   AdminUserList,
   AdminUserUpdate,
   AppSettings,
+  Artifact,
   Job,
   JobCreateInput,
   JobList,
@@ -129,8 +130,21 @@ export async function deleteJob(id: string): Promise<void> {
   await api.delete(`/jobs/${id}`);
 }
 
-export function artifactDownloadUrl(jobId: string, artifactId: string): string {
-  return `/api/jobs/${jobId}/artifacts/${artifactId}`;
+/** Download an artifact and save it under its own filename.
+ *
+ * Fetched through the API client rather than a plain link: the endpoint needs
+ * the bearer token, which a browser navigation would not send. */
+export async function downloadArtifact(jobId: string, artifact: Artifact): Promise<void> {
+  const { data } = await api.get<Blob>(`/jobs/${jobId}/artifacts/${artifact.id}`, {
+    responseType: "blob",
+  });
+  const url = URL.createObjectURL(data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = artifact.filename;
+  link.click();
+  // Give the browser a moment to start the save before the blob is released.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** (Re)send a completed job to Kindle. Omit the artifact to send the job's ebook. */

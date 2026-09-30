@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { LuSave } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
+import { apiErrorMessage } from "../api/client";
 import { createTemplate, listTemplates, updateTemplate } from "../api/endpoints";
 import type { TemplateInput } from "../api/types";
 
@@ -108,6 +109,11 @@ export default function TemplateForm() {
             <option value="mobi">mobi</option>
           </select>
         </label>
+        {mutation.isError && (
+          <span className="error" role="alert">
+            {apiErrorMessage(mutation.error, "Could not save the template.")}
+          </span>
+        )}
         <button className="primary" type="submit" disabled={mutation.isPending}>
           <LuSave />
           {mutation.isPending ? "Saving..." : "Save"}

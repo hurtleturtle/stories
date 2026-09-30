@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LuCircleX, LuRotateCcw, LuSend } from "react-icons/lu";
+import { LuCircleX, LuDownload, LuRotateCcw, LuSend } from "react-icons/lu";
 import { useParams } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
 import {
-  artifactDownloadUrl,
   cancelJob,
+  downloadArtifact,
   getJob,
   retryJob,
   sendJobToKindle,
 } from "../api/endpoints";
-import type { EmailStatus } from "../api/types";
+import type { Artifact, EmailStatus } from "../api/types";
 
 const EMAIL_LABELS: Record<EmailStatus, string> = {
   not_sent: "Not sent",
@@ -27,7 +27,8 @@ const EMAIL_BADGES: Record<EmailStatus, string> = {
 };
 
 function formatSize(bytes: number): string {
-  return `${(bytes / 1024).toFixed(1)} KB`;
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`;
 }
 
 export default function JobDetail() {
@@ -56,6 +57,10 @@ export default function JobDetail() {
   const emailMutation = useMutation({
     mutationFn: (artifactId?: string) => sendJobToKindle(id!, artifactId),
     onSuccess: (updated) => queryClient.setQueryData(["jobs", id], updated),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: (artifact: Artifact) => downloadArtifact(id!, artifact),
   });
 
   if (isLoading || !job) return <p>Loading...</p>;
@@ -144,6 +149,9 @@ export default function JobDetail() {
       {job.artifacts.length > 0 && (
         <div className="card">
           <strong>Artifacts</strong>
+          {downloadMutation.isError && (
+            <p className="error">Could not download the file. Try again in a moment.</p>
+          )}
           <div className="table-wrap">
             <table>
               <tbody>
@@ -154,10 +162,19 @@ export default function JobDetail() {
                       {/* On phones the size moves under the name to save a column. */}
                       <div className="show-sm muted">{formatSize(artifact.size_bytes)}</div>
                     </td>
-                    <td className="hide-sm">{formatSize(artifact.size_bytes)}</td>
+                    <td className="hide-sm artifact-size">{formatSize(artifact.size_bytes)}</td>
                     <td>
                       <div className="artifact-actions">
-                        <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
+                        <button
+                          className="secondary"
+                          onClick={() => downloadMutation.mutate(artifact)}
+                          disabled={downloadMutation.isPending}
+                        >
+                          <LuDownload />
+                          {downloadMutation.isPending && downloadMutation.variables?.id === artifact.id
+                            ? "Downloading..."
+                            : "Download"}
+                        </button>
                         {completed && artifact.kind !== "html" && (
                           <button
                             className="secondary"
