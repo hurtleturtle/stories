@@ -157,6 +157,12 @@ a {
   color: var(--accent);
 }
 
+/* An action, not a destination, so it looks like a button rather than a link. */
+.sidebar button.logout {
+  border: 1px solid var(--border);
+  text-align: center;
+}
+
 .content {
   flex: 1;
   min-width: 0;

@@ -89,7 +89,9 @@ export default function Layout() {
               </button>
             ))}
           </div>
-          <button onClick={logout}>Log out</button>
+          <button type="button" className="logout" onClick={logout}>
+            Log out
+          </button>
         </div>
       </nav>
       <main className="content">
