@@ -84,11 +84,11 @@ async def test_an_unsupported_ebook_type_is_refused_and_the_choices_listed(
     )
 
     assert resp.status_code == 422
-    assert "choose one of: epub, mobi, azw3, pdf" in resp.json()["detail"][0]["msg"]
+    assert "choose one of: epub, azw3, pdf" in resp.json()["detail"][0]["msg"]
     assert queued_tasks == []
 
 
-@pytest.mark.parametrize("ebook_type", ["epub", "mobi", "azw3", "pdf", "PDF"])
+@pytest.mark.parametrize("ebook_type", ["epub", "azw3", "pdf", "PDF"])
 async def test_every_supported_ebook_type_can_be_requested(auth_client, ebook_type):
     resp = await auth_client.post(
         "/api/jobs", json={"url": "https://example.com/1", "ebook_type": ebook_type}
@@ -385,12 +385,12 @@ async def test_templates_cannot_name_files_outside_the_bundled_assets(auth_clien
     bad_script = await auth_client.post("/api/templates", json={**base, "scripts": ["/etc/passwd"]})
     bad_type = await auth_client.post("/api/templates", json={**base, "ebook_type": "../x"})
     ok = await auth_client.post(
-        "/api/templates", json={**base, "style": "black-style.css", "ebook_type": "MOBI"}
+        "/api/templates", json={**base, "style": "black-style.css", "ebook_type": "PDF"}
     )
 
     assert (bad_style.status_code, bad_script.status_code, bad_type.status_code) == (422, 422, 422)
     assert ok.status_code == 201
-    assert ok.json()["ebook_type"] == "mobi"
+    assert ok.json()["ebook_type"] == "pdf"
 
     template_id = ok.json()["id"]
     update = await auth_client.put(f"/api/templates/{template_id}", json={"style": "../../x.css"})
@@ -436,3 +436,136 @@ async def test_downloading_an_artifact_whose_file_is_gone_is_a_404(auth_client, 
     resp = await auth_client.get(f"/api/jobs/{job_id}/artifacts/{artifact_id}")
 
     assert resp.status_code == 404
+
+
+# --- MOBI is no longer offered ---------------------------------------------------
+
+
+@pytest.mark.parametrize("ebook_type", ["mobi", "MOBI"])
+async def test_mobi_is_no_longer_accepted_for_jobs_or_templates(
+    auth_client, queued_tasks, ebook_type
+):
+    job = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "ebook_type": ebook_type}
+    )
+    template = await auth_client.post(
+        "/api/templates",
+        json={"name": "t", "container": "div", "next_selector": "a", "ebook_type": ebook_type},
+    )
+
+    assert (job.status_code, template.status_code) == (422, 422)
+    assert "choose one of: epub, azw3, pdf" in job.json()["detail"][0]["msg"]
+    assert queued_tasks == []
+
+
+async def test_a_mobi_artifact_from_before_still_downloads(auth_client, tmp_path):
+    """Only new production is dropped: books already made stay retrievable."""
+    from test_storage import _artifact_with_path
+
+    book = tmp_path / "Old_Book.mobi"
+    book.write_bytes(b"old mobi")
+    job_id, artifact_id = await _artifact_with_path(auth_client, str(book))
+
+    resp = await auth_client.get(f"/api/jobs/{job_id}/artifacts/{artifact_id}")
+
+    assert resp.status_code == 200 and resp.content == b"old mobi"
+
+
+def test_a_legacy_mobi_artifact_is_never_chosen_for_kindle():
+    from types import SimpleNamespace
+
+    from app.services.email import pick_sendable_artifact
+
+    artifacts = [SimpleNamespace(kind="html"), SimpleNamespace(kind="mobi")]
+
+    assert pick_sendable_artifact(artifacts, preferred_kind="mobi") is None
+    epub = SimpleNamespace(kind="epub")
+    assert pick_sendable_artifact([*artifacts, epub], preferred_kind="mobi") is epub
+
+
+# --- the options the UI offers ---------------------------------------------------
+
+
+async def test_options_list_what_a_template_or_job_may_name(auth_client):
+    resp = await auth_client.get("/api/options")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["ebook_types"] == ["epub", "azw3", "pdf"]
+    assert "white-style.css" in body["styles"] and "black-style.css" in body["styles"]
+    assert body["scripts"] == ["scroll_tracker.js"]
+
+
+async def test_every_option_offered_is_accepted_by_the_api(auth_client):
+    options = (await auth_client.get("/api/options")).json()
+
+    for style in options["styles"]:
+        for ebook_type in options["ebook_types"]:
+            resp = await auth_client.post(
+                "/api/jobs",
+                json={"url": "https://example.com/1", "style": style, "ebook_type": ebook_type},
+            )
+            assert resp.status_code == 201, (style, ebook_type, resp.text)
+
+
+async def test_options_need_a_login(client):
+    assert (await client.get("/api/options")).status_code == 401
+
+
+# --- a template holding values that are no longer valid ---------------------------
+
+
+async def _template_with(auth_client, **stored) -> str:
+    """Create a template, then overwrite columns directly - as old data would be."""
+    from sqlalchemy import update
+
+    from app.db import AsyncSessionLocal
+    from app.models import Template
+
+    base = {"name": "old", "container": "div.chapter-content", "next_selector": "a#next_chap"}
+    template_id = (await auth_client.post("/api/templates", json=base)).json()["id"]
+    async with AsyncSessionLocal() as db:
+        await db.execute(
+            update(Template).where(Template.id == uuid.UUID(template_id)).values(**stored)
+        )
+        await db.commit()
+    return template_id
+
+
+async def test_a_job_from_a_template_with_stale_values_says_what_is_wrong(
+    auth_client, queued_tasks
+):
+    """Was an unhandled validation error, so a 500 with nothing to act on."""
+    template_id = await _template_with(auth_client, ebook_type="mobi", style="gone.css")
+
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "template_id": template_id}
+    )
+
+    assert resp.status_code == 422, resp.text
+    detail = resp.json()["detail"]
+    assert "Template 'old'" in detail
+    assert "ebook_type: Unsupported ebook type 'mobi'" in detail
+    assert "style: Unknown style 'gone.css'" in detail
+    assert queued_tasks == []
+
+
+async def test_the_stale_template_can_still_be_listed_and_fixed(auth_client):
+    template_id = await _template_with(auth_client, ebook_type="mobi")
+
+    listed = (await auth_client.get("/api/templates")).json()
+    assert [t["ebook_type"] for t in listed] == ["mobi"]  # shown, so it can be corrected
+
+    fixed = await auth_client.put(f"/api/templates/{template_id}", json={"ebook_type": "epub"})
+    assert fixed.status_code == 200 and fixed.json()["ebook_type"] == "epub"
+
+
+async def test_overriding_a_stale_template_value_in_the_request_fixes_the_job(auth_client):
+    template_id = await _template_with(auth_client, ebook_type="mobi")
+
+    resp = await auth_client.post(
+        "/api/jobs",
+        json={"url": "https://example.com/1", "template_id": template_id, "ebook_type": "epub"},
+    )
+
+    assert resp.status_code == 201, resp.text

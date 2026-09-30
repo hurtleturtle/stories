@@ -74,6 +74,13 @@ export interface JobCreateInput {
   send_email?: boolean;
 }
 
+/** The values the API accepts for settings chosen from a fixed list. */
+export interface Options {
+  ebook_types: string[];
+  styles: string[];
+  scripts: string[];
+}
+
 export interface UserSettingsInput {
   kindle_address?: string;
   email_from?: string;

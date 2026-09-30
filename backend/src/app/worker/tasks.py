@@ -33,7 +33,7 @@ CHAPTERS_DIR = ".chapters"
 CONTENT_TYPES = {
     "html": "text/html",
     "epub": "application/epub+zip",
-    "mobi": "application/x-mobipocket-ebook",
+    "mobi": "application/x-mobipocket-ebook",  # no longer produced; old artifacts still download
     "azw3": "application/vnd.amazon.ebook",
     "pdf": "application/pdf",
 }

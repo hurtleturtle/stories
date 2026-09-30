@@ -62,11 +62,17 @@ async def db_engine():
         pytest.skip("TEST_DATABASE_URL is not set")
 
     from app import models  # noqa: F401 - registers the tables on Base
-    from app.db import Base, async_engine
+    from app.db import Base, async_engine, sync_engine
 
     # Each test runs in its own event loop, and pooled connections belong to
     # the loop that opened them - so the pool is emptied either side.
+    #
+    # The sync engine (the worker's) needs the same, for another reason: after
+    # five runs psycopg keeps a statement prepared on the connection, and the
+    # tables are dropped and recreated under it between tests, which Postgres
+    # answers with "cached plan must not change result type".
     await async_engine.dispose()
+    sync_engine.dispose()
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -76,6 +82,7 @@ async def db_engine():
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
         await async_engine.dispose()
+        sync_engine.dispose()
 
 
 class QueuedTasks(list):

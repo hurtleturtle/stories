@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
+from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -51,7 +52,20 @@ async def create_job(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
 
     overrides = data.model_dump(exclude={"url", "template_id", "send_email"})
-    config = build_job_config(data.url, template, overrides)
+    try:
+        config = build_job_config(data.url, template, overrides)
+    except ValidationError as exc:
+        # The request itself was validated already, so this is a value stored on
+        # the template that is not accepted any more (a stylesheet that was
+        # removed, a format that was dropped).
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: "
+            f"{error['msg'].removeprefix('Value error, ')}"
+            for error in exc.errors()
+        )
+        name = f"Template {template.name!r}" if template else "This job"
+        detail = f"{name} has settings that are not valid: {problems}"
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail) from exc
 
     # Chosen up front so the id is on the job from the moment it can be
     # cancelled, rather than only once a worker picks it up.

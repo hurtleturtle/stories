@@ -62,7 +62,7 @@ def test_ebook_type_rejects_anything_that_could_carry_a_path_or_option(value):
 
 
 @pytest.mark.parametrize(
-    ("value", "expected"), [("epub", "epub"), ("MOBI", "mobi"), (" azw3 ", "azw3")]
+    ("value", "expected"), [("epub", "epub"), ("PDF", "pdf"), (" azw3 ", "azw3")]
 )
 def test_ebook_type_is_normalised(value, expected):
     assert StoryConfig(url="https://example.com/1", ebook_type=value).ebook_type == expected
@@ -138,9 +138,11 @@ def test_every_supported_ebook_type_is_accepted(value):
     assert StoryConfig(url="https://example.com/1", ebook_type=value).ebook_type == value
 
 
-@pytest.mark.parametrize("value", ["docx", "txt", "xyz", "epub2", "mobi.exe", "fb2", "html"])
+@pytest.mark.parametrize(
+    "value", ["mobi", "MOBI", "docx", "txt", "xyz", "epub2", "mobi.exe", "fb2", "html"]
+)
 def test_ebook_types_outside_the_supported_list_are_rejected_with_the_choices(value):
-    with pytest.raises(ValidationError, match="choose one of: epub, mobi, azw3, pdf"):
+    with pytest.raises(ValidationError, match="choose one of: epub, azw3, pdf"):
         StoryConfig(url="https://example.com/1", ebook_type=value)
 
 

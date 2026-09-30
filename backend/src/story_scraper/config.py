@@ -9,10 +9,10 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# The formats a job can produce: what Kindle's personal-document service takes,
-# in order of preference. Also used as a file extension and passed to Calibre,
-# so it must be a known name and never free text.
-EBOOK_TYPES = ("epub", "mobi", "azw3", "pdf")
+# The formats a job can produce, in order of preference for sending to Kindle. Also
+# used as a file extension and passed to Calibre, so it must be a known name and
+# never free text. MOBI is no longer offered: Send to Kindle takes EPUB instead.
+EBOOK_TYPES = ("epub", "azw3", "pdf")
 
 
 def _supported_ebook_type(value: str) -> str:

@@ -98,6 +98,12 @@ class TemplateOut(TemplateBase):
     updated_at: datetime
 
 
+class OptionsOut(BaseModel):
+    ebook_types: list[str]
+    styles: list[str]
+    scripts: list[str]
+
+
 class UserSettingsIn(BaseModel):
     kindle_address: str | None = None
     email_from: str | None = None

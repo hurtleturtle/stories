@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import admin, auth, jobs, settings, templates
+from app.routers import admin, auth, jobs, options, settings, templates
 from app.services.jobs import sweep_stale_jobs_forever
 
 
@@ -39,6 +39,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(templates.router)
 app.include_router(settings.router)
+app.include_router(options.router)
 app.include_router(jobs.router)
 app.include_router(admin.router)
 

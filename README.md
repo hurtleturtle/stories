@@ -56,7 +56,7 @@ A template is a set of CSS selectors for one site:
 - `detect_title` *optional* - selector for the chapter title
 - `style` *optional* - stylesheet filename bundled in `story_scraper/assets/styles` (other names are rejected); it is inlined into the generated HTML
 - `scripts` *optional* - script filenames bundled in `story_scraper/assets/scripts` (other names are rejected), inlined into the generated HTML's `<head>`
-- `ebook_type` *optional* - `epub` (default), `mobi`, `azw3` or `pdf`
+- `ebook_type` *optional* - `epub` (default), `azw3` or `pdf`. MOBI is no longer offered (Send to Kindle takes EPUB); a migration switched templates and unfinished jobs that used it to `epub`, and finished `.mobi` books still download. `GET /api/options` lists the valid formats and stylesheets, which the template form uses for its dropdowns.
 
 `backend/templates/*.yml` ships the original site templates (Royal Road,
 ReadNovelFull, etc.) as seed data for "Import built-in templates".
