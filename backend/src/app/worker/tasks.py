@@ -17,7 +17,7 @@ from sqlalchemy import delete, func, select, update
 from app.db import get_sync_db
 from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
 from app.services.email import missing_smtp_fields, pick_sendable_artifact, smtp_config
-from app.services.storage import job_dir
+from app.services.storage import job_dir, resolve_stored_path, stored_path
 from app.worker.celery_app import celery_app
 from story_scraper.config import StoryConfig, settings
 from story_scraper.converter import convert
@@ -44,7 +44,7 @@ def _record_artifact(session, job: Job, kind: str, path) -> None:
         job_id=job.id,
         kind=kind,
         filename=path.name,
-        path=str(path),
+        path=stored_path(path),
         size_bytes=path.stat().st_size,
         content_type=CONTENT_TYPES.get(kind, "application/octet-stream"),
     )
@@ -239,7 +239,7 @@ def email_artifact_task(job_id: str, artifact_id: str | None = None) -> None:
             session.commit()
             return
 
-        _send_to_kindle(session, job, Path(artifact.path))
+        _send_to_kindle(session, job, resolve_stored_path(artifact.path))
         session.commit()
     except Exception as exc:  # noqa: BLE001 - a resend must not crash the worker
         session.rollback()

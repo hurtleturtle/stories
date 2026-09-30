@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -16,7 +15,7 @@ from app.models import EmailStatus, Job, JobStatus, Template, User, UserSettings
 from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut
 from app.services.email import missing_smtp_fields, pick_sendable_artifact
 from app.services.jobs import build_job_config
-from app.services.storage import remove_job_files
+from app.services.storage import remove_job_files, resolve_stored_path
 from app.worker.celery_app import celery_app
 from story_scraper.urlsafety import UnsafeURLError, assert_public_url
 
@@ -181,12 +180,14 @@ async def download_artifact(
     if artifact is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact not found")
 
-    if not Path(artifact.path).is_file():
+    try:
+        path = resolve_stored_path(artifact.path)
+    except ValueError:
+        path = None
+    if path is None or not path.is_file():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact file is no longer available")
 
-    return FileResponse(
-        artifact.path, media_type=artifact.content_type, filename=artifact.filename
-    )
+    return FileResponse(path, media_type=artifact.content_type, filename=artifact.filename)
 
 
 @router.post("/{job_id}/email", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)
