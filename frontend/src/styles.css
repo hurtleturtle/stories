@@ -206,128 +206,6 @@ a {
   display: none;
 }
 
-@media (max-width: 768px) {
-  .layout {
-    flex-direction: column;
-  }
-
-  .topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    position: sticky;
-    top: 0;
-    z-index: 40;
-    height: var(--topbar-h);
-    padding: 0 1rem;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .menu-toggle {
-    background: var(--tint-bg);
-    border: 1px solid transparent;
-    color: var(--tint-fg);
-    border-radius: 6px;
-    padding: 0.4rem 0.65rem;
-    font-size: 0.95rem;
-    line-height: 1;
-    cursor: pointer;
-  }
-
-  /* Full-screen menu under the top bar. Anchored with top/bottom rather than
-     100vh, which on phones includes the area behind the browser toolbar and
-     pushed "Log out" off-screen. */
-  .sidebar {
-    position: fixed;
-    top: var(--topbar-h);
-    left: 0;
-    right: 0;
-    bottom: 0;
-    width: auto;
-    height: auto;
-    gap: 0.25rem;
-    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
-    background: var(--bg);
-    border-right: none;
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-0.5rem);
-    transition:
-      opacity 0.15s ease-out,
-      transform 0.15s ease-out,
-      visibility 0.15s;
-    z-index: 30;
-  }
-
-  .sidebar.open {
-    opacity: 1;
-    visibility: visible;
-    transform: none;
-  }
-
-  /* Straight after the links rather than pinned to the bottom, where the
-     browser toolbar can still cover it. */
-  .sidebar-footer {
-    margin-top: 0.75rem;
-    padding-top: 0.75rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .sidebar .theme-switch button {
-    padding: 0.55rem 0.25rem;
-    font-size: 0.9rem;
-  }
-
-  body.menu-open {
-    overflow: hidden;
-  }
-
-  .sidebar-title {
-    display: none;
-  }
-
-  .content {
-    padding: 1rem;
-    max-width: 100%;
-  }
-
-  .auth-page {
-    margin: 1rem auto;
-  }
-
-  /* Secondary table detail is dropped or shortened so tables fit a phone. */
-  .hide-sm {
-    display: none;
-  }
-
-  .show-sm {
-    display: inline;
-  }
-
-  table th,
-  table td {
-    padding: 0.5rem 0.4rem;
-  }
-
-  form {
-    max-width: 100%;
-  }
-
-  .sidebar a,
-  .sidebar button,
-  button.primary,
-  button.secondary {
-    padding: 0.7rem 1rem;
-    font-size: 1rem;
-  }
-
-  input,
-  select {
-    font-size: 1rem;
-  }
-}
-
 h1 {
   margin-top: 0;
 }
@@ -373,7 +251,8 @@ select {
 button.primary {
   background: var(--accent);
   color: var(--accent-contrast);
-  border: none;
+  /* Same box as secondary buttons, so the two line up side by side. */
+  border: 1px solid transparent;
   padding: 0.55rem 1rem;
   border-radius: 6px;
   cursor: pointer;
@@ -393,6 +272,12 @@ button.secondary,
   gap: 0.4rem;
 }
 
+/* Keep labels on one line; rows of buttons wrap instead. */
+button.primary,
+button.secondary {
+  white-space: nowrap;
+}
+
 button svg {
   flex-shrink: 0;
 }
@@ -402,14 +287,6 @@ button svg {
 .sidebar .theme-switch button {
   flex-direction: column;
   gap: 0.15rem;
-}
-
-/* The full-width mobile menu has room to keep them on one line. */
-@media (max-width: 768px) {
-  .sidebar .theme-switch button {
-    flex-direction: row;
-    gap: 0.4rem;
-  }
 }
 
 button.primary:disabled,
@@ -523,4 +400,131 @@ pre.log {
   overflow: auto;
   font-size: 0.82rem;
   white-space: pre-wrap;
+}
+
+/* Phones. Kept at the end of the file so these overrides win over the base
+   rules above; anything placed after this block would undo them. */
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    height: var(--topbar-h);
+    padding: 0 1rem;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .menu-toggle {
+    background: var(--tint-bg);
+    border: 1px solid transparent;
+    color: var(--tint-fg);
+    border-radius: 6px;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.95rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  /* Full-screen menu under the top bar. Anchored with top/bottom rather than
+     100vh, which on phones includes the area behind the browser toolbar and
+     pushed "Log out" off-screen. */
+  .sidebar {
+    position: fixed;
+    top: var(--topbar-h);
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: auto;
+    gap: 0.25rem;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    background: var(--bg);
+    border-right: none;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-0.5rem);
+    transition:
+      opacity 0.15s ease-out,
+      transform 0.15s ease-out,
+      visibility 0.15s;
+    z-index: 30;
+  }
+
+  .sidebar.open {
+    opacity: 1;
+    visibility: visible;
+    transform: none;
+  }
+
+  /* Straight after the links rather than pinned to the bottom, where the
+     browser toolbar can still cover it. */
+  .sidebar-footer {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* The full-width menu has room to keep icon and label on one line. */
+  .sidebar .theme-switch button {
+    flex-direction: row;
+    gap: 0.4rem;
+    padding: 0.55rem 0.25rem;
+    font-size: 0.9rem;
+  }
+
+  body.menu-open {
+    overflow: hidden;
+  }
+
+  .sidebar-title {
+    display: none;
+  }
+
+  .content {
+    padding: 1rem;
+    max-width: 100%;
+  }
+
+  .auth-page {
+    margin: 1rem auto;
+  }
+
+  /* Secondary table detail is dropped or shortened so tables fit a phone. */
+  .hide-sm {
+    display: none;
+  }
+
+  .show-sm {
+    display: inline;
+  }
+
+  table th,
+  table td {
+    padding: 0.5rem 0.4rem;
+  }
+
+  form {
+    max-width: 100%;
+  }
+
+  .sidebar a,
+  .sidebar button,
+  button.primary,
+  button.secondary {
+    padding: 0.7rem 1rem;
+    font-size: 1rem;
+  }
+
+  input,
+  select {
+    font-size: 1rem;
+  }
 }

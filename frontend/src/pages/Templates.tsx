@@ -25,18 +25,22 @@ export default function Templates() {
       <h1>Templates</h1>
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <Link to="/templates/new">
-          <button className="primary" type="button">
+          {/* Short labels on phones so both buttons fit on one row. */}
+          <button className="primary" type="button" aria-label="New template">
             <LuPlus />
-            New template
+            <span className="hide-sm">New template</span>
+            <span className="show-sm">New</span>
           </button>
         </Link>
         <button
           className="secondary"
           onClick={() => importMutation.mutate()}
           disabled={importMutation.isPending}
+          aria-label="Import built-in templates"
         >
           <LuDownload />
-          Import built-in templates
+          <span className="hide-sm">Import built-in templates</span>
+          <span className="show-sm">Import</span>
         </button>
       </div>
 
