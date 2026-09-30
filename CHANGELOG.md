@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.0](https://github.com/hurtleturtle/stories/compare/v0.6.0...v0.7.0) (2026-09-30)
+
+
+### Features
+
+* **converter:** explicit table of contents, author and language ([5c7d7f2](https://github.com/hurtleturtle/stories/commit/5c7d7f264b5c47e4d2bb41b781b7f25e40b93ca2))
+* drop MOBI, and offer the valid formats and stylesheets as dropdowns ([b0b1837](https://github.com/hurtleturtle/stories/commit/b0b1837d9d1062d3be2323496f818b9b3f1acdc6))
+* **scraper:** cap chapters, scrape time and page size ([6d1f0ec](https://github.com/hurtleturtle/stories/commit/6d1f0ecf36a55def96060cfed19908dd902a8a7d))
+* **scraper:** store chapters as they are scraped, resume, catch repeats, sanitise ([93245e8](https://github.com/hurtleturtle/stories/commit/93245e8925df3396dd9fb9c49638f6e1fff929c1))
+* **storage:** record artifact paths relative to the artifact folder ([ac7a113](https://github.com/hurtleturtle/stories/commit/ac7a113f66d92205a46d7d094bde50194ef678ed))
+* **worker:** cancel running jobs and write the job log in batches ([38ff511](https://github.com/hurtleturtle/stories/commit/38ff5112d4144c50205cfcd50cddf2d78ea2ed44))
+
+
+### Bug Fixes
+
+* **frontend:** show the API's validation errors instead of "Could not save" ([290d4b0](https://github.com/hurtleturtle/stories/commit/290d4b04d7fc03316b1ba93ed57eb0f9f4031ec4))
+* **scraper:** harden next-link handling, filenames, job cancel and URL fetching ([0e8660a](https://github.com/hurtleturtle/stories/commit/0e8660a39a383f2e88f77216535193b838b86061))
+* **scraper:** inline assets, retry sensibly, decode correctly, bound Calibre ([89c3556](https://github.com/hurtleturtle/stories/commit/89c355646cc5bcd3518d02e96cd6c400f59fad6c))
+* **scraper:** read chapter headings correctly ([c206d3d](https://github.com/hurtleturtle/stories/commit/c206d3dbaae23ab1cd9eca6a29abc714c2fb9e17))
+* **worker:** fail jobs whose worker died instead of leaving them running ([ad950a4](https://github.com/hurtleturtle/stories/commit/ad950a45826d140b16688ce8b36c15e6b79eabbc))
+* **worker:** stamp heartbeats with the database clock; stale after 2 minutes ([a7ca787](https://github.com/hurtleturtle/stories/commit/a7ca787b0dd59a4763ed766007ddebb9ce1cde4c))
+
 ## [0.6.0](https://github.com/hurtleturtle/stories/compare/v0.5.0...v0.6.0) (2026-09-30)
 
 
