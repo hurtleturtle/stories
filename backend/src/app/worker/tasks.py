@@ -6,13 +6,14 @@ from __future__ import annotations
 import logging
 import shutil
 import threading
+import time
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import case, delete, func, select, update
 
 from app.db import get_sync_db
 from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
@@ -51,8 +52,67 @@ def _record_artifact(session, job: Job, kind: str, path) -> None:
     session.add(artifact)
 
 
-def _append_log(job: Job, line: str) -> None:
-    job.log = (job.log or "") + f"\n{line}"
+def _append_log(session, job_id: UUID, *lines: str) -> None:
+    """Add lines to a job's log, in SQL.
+
+    Appended in the database rather than by assigning a new whole log, so it
+    can never overwrite lines another writer added (the batched chapter lines,
+    an email note), and only the new lines are sent."""
+    if not lines:
+        return
+    existing = func.coalesce(Job.log, "")
+    separator = case((existing == "", ""), else_="\n")
+    session.execute(
+        update(Job).where(Job.id == job_id).values(log=existing + separator + "\n".join(lines))
+    )
+
+
+class _ProgressLog:
+    """Chapter lines for the job log, written to the database in batches.
+
+    One write per chapter meant sending, and the database rewriting, the whole
+    growing log each time, so the total grew with the square of the chapter
+    count. Lines are held back and written once FLUSH_LINES have built up or
+    FLUSH_SECONDS have passed since the last write, and whenever `flush` is
+    called (when the scrape ends, or fails, so no progress is lost)."""
+
+    FLUSH_LINES = 25
+    FLUSH_SECONDS = 3.0
+
+    def __init__(self, session, job_id: UUID, clock=time.monotonic) -> None:
+        self._session = session
+        self._job_id = job_id
+        self._clock = clock
+        self._pending: list[str] = []
+        self._last_flush = clock()
+
+    def add(self, line: str) -> None:
+        self._pending.append(line)
+        if (
+            len(self._pending) >= self.FLUSH_LINES
+            or self._clock() - self._last_flush >= self.FLUSH_SECONDS
+        ):
+            self.flush()
+
+    def flush(self) -> None:
+        if self._pending:
+            _append_log(self._session, self._job_id, *self._pending)
+            self._session.commit()
+            self._pending.clear()
+        self._last_flush = self._clock()
+
+
+class _JobStopped(Exception):
+    """This run should stop: the job was cancelled, deleted or swept as lost, or
+    a retry gave it to a new task. Not a failure; the run just ends.
+
+    `superseded` means a new task owns the job now. That run is writing the job's
+    log, so this one must leave it alone."""
+
+    def __init__(self, status: JobStatus | None, superseded: bool = False) -> None:
+        super().__init__(f"job is {status.value if status else 'gone'}")
+        self.status = status
+        self.superseded = superseded
 
 
 def _claim_job(session, job_id: UUID, task_id: str | None) -> bool:
@@ -123,36 +183,72 @@ def run_story_job(self, job_id: str) -> None:
             logger.info("Not running job %s: it is no longer pending", job_id)
             return
         with _heartbeat(UUID(job_id)):
-            _run_claimed_job(session, job_id)
+            _run_claimed_job(session, job_id, self.request.id)
     finally:
         session.close()
 
 
-def _run_claimed_job(session, job_id: str) -> None:
+def _owns(job_id: UUID, task_id: str | None):
+    """Condition for a row this run may still write: the job with this id whose
+    task is this one. A retry gives the job a new task id, so a run that was
+    cancelled and superseded stops being able to touch it."""
+    return (Job.id == job_id) & Job.celery_task_id.is_not_distinct_from(task_id)
+
+
+def _finish(session, job_id: UUID, task_id: str | None, status: JobStatus, **values) -> None:
+    """Set the final status, but only while the job is still running and ours:
+    a job cancelled mid-run stays cancelled rather than turning `success`."""
+    session.execute(
+        update(Job)
+        .where(_owns(job_id, task_id), Job.status == JobStatus.running)
+        .values(status=status, **values)
+    )
+
+
+def _run_claimed_job(session, job_id: str, task_id: str | None = None) -> None:
+    job_uuid = UUID(job_id)
+    log: _ProgressLog | None = None
     try:
-        job = session.get(Job, UUID(job_id))
+        job = session.get(Job, job_uuid)
         config = StoryConfig(**job.config)
-        log_lines: list[str] = []
+        log = _ProgressLog(session, job_uuid)
 
         def progress(count: int, url: str) -> None:
-            log_lines.append(f"Chapter {count}: {url}")
-            job.chapters_scraped = count
-            job.log = "\n".join(log_lines)
+            log.add(f"Chapter {count}: {url}")
+            # The chapter count, and in the same statement whether to carry on.
+            row = session.execute(
+                update(Job)
+                .where(Job.id == job_uuid)
+                .values(chapters_scraped=count)
+                .returning(Job.status, Job.celery_task_id)
+            ).one_or_none()
             session.commit()
+            if row is None:
+                raise _JobStopped(None)
+            if row.celery_task_id != task_id:
+                raise _JobStopped(row.status, superseded=True)
+            if row.status != JobStatus.running:
+                raise _JobStopped(row.status)
 
         output_dir = job_dir(job.owner_id, job.id)
         work_dir = output_dir / CHAPTERS_DIR
         with Story(config, progress=progress, work_dir=work_dir) as story:
-            if story.chapters_done:
+            stored = story.chapters_done
+            if stored:
                 # An earlier attempt stored these; the scrape picks up after them.
-                log_lines.extend((job.log or "").splitlines())
-                log_lines.append(f"Resuming after chapter {story.chapters_done}.")
-                job.chapters_scraped = story.chapters_done
-                job.log = "\n".join(log_lines)
-                session.commit()
+                _append_log(session, job_uuid, f"Resuming after chapter {stored}.")
+                session.execute(
+                    update(Job).where(Job.id == job_uuid).values(chapters_scraped=stored)
+                )
+            else:
+                # A fresh scrape has its own log; a resumed one carries on from the last.
+                session.execute(update(Job).where(Job.id == job_uuid).values(log=None))
+            session.commit()
+
             html_file = story.write(output_dir)
             if story.stop_reason:
-                _append_log(job, story.stop_reason)
+                log.add(story.stop_reason)
+        log.flush()
 
         # Committed now: if conversion fails, the scraped book is still worth
         # having, and the failure handler below rolls back to this point.
@@ -167,18 +263,28 @@ def _run_claimed_job(session, job_id: str) -> None:
             _send_to_kindle(session, job, ebook_file)
 
         shutil.rmtree(work_dir, ignore_errors=True)  # only kept so a retry can resume
-        job.status = JobStatus.success
+        _finish(session, job_uuid, task_id, JobStatus.success)
+    except _JobStopped as stopped:
+        session.rollback()
+        if not stopped.superseded:
+            if log:
+                log.flush()
+            if stopped.status is not None:
+                _append_log(session, job_uuid, f"Stopped: the job was {stopped.status.value}.")
     except Exception as exc:  # noqa: BLE001 - job failures must not crash the worker
         session.rollback()
-        job = session.get(Job, UUID(job_id))
-        if job is not None:
-            job.status = JobStatus.failed
-            job.error = f"{exc}\n\n{traceback.format_exc()}"
+        if log:
+            log.flush()  # keep the progress made before the failure
+        _finish(
+            session,
+            job_uuid,
+            task_id,
+            JobStatus.failed,
+            error=f"{exc}\n\n{traceback.format_exc()}",
+        )
     finally:
-        job = session.get(Job, UUID(job_id))
-        if job is not None:
-            job.finished_at = func.now()
-            session.commit()
+        session.execute(update(Job).where(_owns(job_uuid, task_id)).values(finished_at=func.now()))
+        session.commit()
 
 
 def _user_settings(session, owner_id: UUID) -> UserSettings | None:
@@ -197,7 +303,7 @@ def _send_to_kindle(session, job: Job, ebook_file: Path) -> None:
         reason = f"SMTP settings incomplete - missing {missing}."
         job.email_status = EmailStatus.failed
         job.email_error = reason
-        _append_log(job, f"Skipped email: {reason}")
+        _append_log(session, job.id, f"Skipped email: {reason}")
         return
 
     job.email_recipient = smtp.to_addr
@@ -206,13 +312,13 @@ def _send_to_kindle(session, job: Job, ebook_file: Path) -> None:
     except Exception as exc:  # noqa: BLE001 - surfaced on the job, not raised
         job.email_status = EmailStatus.failed
         job.email_error = str(exc) or exc.__class__.__name__
-        _append_log(job, f"Failed to send email: {exc}")
+        _append_log(session, job.id, f"Failed to send email: {exc}")
         return
 
     job.email_status = EmailStatus.sent
     job.email_error = None
     job.email_sent_at = func.now()
-    _append_log(job, f"Emailed {ebook_file.name} to {smtp.to_addr}.")
+    _append_log(session, job.id, f"Emailed {ebook_file.name} to {smtp.to_addr}.")
 
 
 @celery_app.task

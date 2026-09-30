@@ -136,22 +136,36 @@ async def test_cancelling_revokes_the_task_it_was_dispatched_as(
     assert revoked == [queued_tasks.kwargs[-1]["task_id"]]
 
 
-async def test_a_running_job_cannot_be_cancelled(auth_client, revoked):
+async def test_a_running_job_can_be_cancelled(auth_client, revoked):
+    """Nothing to revoke: the worker is already on it and stops at its next chapter."""
     body = await create_job(auth_client)
     set_status(body["id"], "running")
 
     resp = await auth_client.post(f"/api/jobs/{body['id']}/cancel")
 
-    assert resp.status_code == 409
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["status"] == "cancelled"
     assert revoked == []
-    assert load_job(body["id"]).status.value == "running"
+    assert load_job(body["id"]).status.value == "cancelled"
 
 
-async def test_cancel_does_not_overwrite_a_job_a_worker_claimed_meanwhile(
+@pytest.mark.parametrize("status", ["success", "failed", "cancelled"])
+async def test_a_finished_job_cannot_be_cancelled(auth_client, revoked, status):
+    body = await create_job(auth_client)
+    set_status(body["id"], status)
+
+    resp = await auth_client.post(f"/api/jobs/{body['id']}/cancel")
+
+    assert resp.status_code == 409
+    assert "pending or running" in resp.json()["detail"]
+    assert load_job(body["id"]).status.value == status
+
+
+async def test_cancelling_a_job_the_worker_has_claimed_meanwhile_still_cancels_it(
     auth_client, revoked, monkeypatch
 ):
-    """The request checked `pending`, then a worker started the job before the
-    cancel was written. The write is conditional, so the job keeps running."""
+    """The request saw `pending`, and a worker started the job before the cancel
+    was written. It is running now, which can be cancelled too."""
     from sqlalchemy.orm.attributes import set_committed_value
 
     from app.models import JobStatus
@@ -159,7 +173,6 @@ async def test_cancel_does_not_overwrite_a_job_a_worker_claimed_meanwhile(
 
     body = await create_job(auth_client)
     set_status(body["id"], "running")
-
     real_get = jobs_router._get_owned_job
 
     async def stale_view(db, user, job_id):
@@ -171,9 +184,36 @@ async def test_cancel_does_not_overwrite_a_job_a_worker_claimed_meanwhile(
 
     resp = await auth_client.post(f"/api/jobs/{body['id']}/cancel")
 
+    assert resp.status_code == 200
+    assert load_job(body["id"]).status.value == "cancelled"
+
+
+async def test_cancel_does_not_overwrite_a_job_that_finished_meanwhile(
+    auth_client, revoked, monkeypatch
+):
+    """The request saw `running`, and the job finished before the cancel was
+    written. The write is conditional, so the finished job is left alone."""
+    from sqlalchemy.orm.attributes import set_committed_value
+
+    from app.models import JobStatus
+    from app.routers import jobs as jobs_router
+
+    body = await create_job(auth_client)
+    set_status(body["id"], "success")
+    real_get = jobs_router._get_owned_job
+
+    async def stale_view(db, user, job_id):
+        job = await real_get(db, user, job_id)
+        set_committed_value(job, "status", JobStatus.running)  # what the request saw
+        return job
+
+    monkeypatch.setattr(jobs_router, "_get_owned_job", stale_view)
+
+    resp = await auth_client.post(f"/api/jobs/{body['id']}/cancel")
+
     assert resp.status_code == 409
     assert revoked == []
-    assert load_job(body["id"]).status.value == "running"
+    assert load_job(body["id"]).status.value == "success"
 
 
 # --- retrying --------------------------------------------------------------

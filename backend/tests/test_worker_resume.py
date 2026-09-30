@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import httpx
 import pytest
 import respx
-from jobhelpers import load_job
+from jobhelpers import load_job, set_status
 from sitehelpers import BASE, mount, page
 
 from story_scraper.converter import ConversionError
@@ -201,3 +201,40 @@ async def test_a_job_with_nothing_stored_does_not_claim_to_resume(auth_client, s
     run_story_job(job_id)
 
     assert "Resuming" not in load_job(job_id).log
+
+
+@respx.mock
+async def test_a_cancelled_running_job_keeps_its_chapters_and_a_retry_resumes(auth_client, scraper):
+    from app.worker.tasks import run_story_job
+
+    job_id = await new_job(auth_client)
+    c1 = respx.get(BASE + "c1").mock(
+        return_value=httpx.Response(200, text=page("<p>One.</p>", "c2"))
+    )
+
+    def cancelled_while_downloading(request: httpx.Request) -> httpx.Response:
+        set_status(job_id, "cancelled")  # the user presses Cancel as chapter 2 arrives
+        return httpx.Response(200, text=page("<p>Two.</p>", "c3"))
+
+    c2 = respx.get(BASE + "c2").mock(side_effect=cancelled_while_downloading)
+    c3 = respx.get(BASE + "c3").mock(return_value=httpx.Response(200, text=page("<p>Three.</p>")))
+
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    assert job.status.value == "cancelled"
+    assert not c3.called  # stopped as soon as it noticed
+    assert job.artifacts == [] and not scraper.converted
+    assert chapter_files(scraper.chapters_dir) == ["chapter-000001.html", "chapter-000002.html"]
+    assert job.log.splitlines()[-1] == "Stopped: the job was cancelled."
+
+    await retry(auth_client, job_id)  # a cancelled job can be retried
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    assert job.status.value == "success", job.error
+    assert job.chapters_scraped == 3
+    assert (c1.call_count, c2.call_count, c3.call_count) == (1, 1, 1)  # nothing fetched twice
+    assert "Resuming after chapter 2." in job.log.splitlines()
+    assert scraper.converted[-1].count('class="chp"') == 3
+    assert not scraper.chapters_dir.exists()

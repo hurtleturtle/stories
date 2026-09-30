@@ -150,23 +150,32 @@ async def retry_job(
 async def cancel_job(
     job_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
 ) -> Job:
-    job = await _get_owned_job(db, user, job_id)
-    if job.status != JobStatus.pending:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending jobs can be cancelled")
+    """Cancel a job that is queued or running.
 
-    # Conditional, so a worker that claims the job between the check above and
-    # this write is not silently overwritten.
+    A queued job is simply not run. A running one is marked cancelled and its
+    worker stops at the next chapter; the chapters already scraped are kept, so
+    a retry carries on from them."""
+    job = await _get_owned_job(db, user, job_id)
+    if job.status not in (JobStatus.pending, JobStatus.running):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Only pending or running jobs can be cancelled"
+        )
+
+    # Conditional, so a job that finishes between the check above and this write
+    # is not overwritten.
+    was_pending = job.status == JobStatus.pending
     cancelled = await db.execute(
         update(Job)
-        .where(Job.id == job.id, Job.status == JobStatus.pending)
+        .where(Job.id == job.id, Job.status.in_([JobStatus.pending, JobStatus.running]))
         .values(status=JobStatus.cancelled)
     )
     await db.commit()
     if cancelled.rowcount == 0:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Job has already started")
+        raise HTTPException(status.HTTP_409_CONFLICT, "Job has already finished")
 
-    # Best effort: the worker also refuses any job that is no longer pending.
-    if job.celery_task_id:
+    # Best effort for a queued job: the worker also refuses any job that is no
+    # longer pending. A running one notices through its progress updates.
+    if was_pending and job.celery_task_id:
         celery_app.control.revoke(job.celery_task_id)
     await db.refresh(job)
     return job

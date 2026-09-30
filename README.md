@@ -83,6 +83,16 @@ however long the story is and nothing is lost if the worker dies.
 - **Content is sanitised.** Scripts, styles, frames, plugins, event handlers, `javascript:`
   links and comments are stripped from chapter text before it is stored, which also
   removes the ad scripts many sites embed.
+- **Running jobs can be cancelled.** The worker checks after every chapter whether its job
+  is still running (and still its own), so Cancel stops it at the next chapter. The chapters
+  scraped so far are kept, and Retry carries on from them. A run replaced by a retry, or
+  whose job was deleted, stops too, and only a run that still finds its job `running` can
+  mark it finished, so a cancelled job is never turned back into a success.
+- **Limits.** One scrape is capped at `MAX_CHAPTERS` chapters and `MAX_SCRAPE_SECONDS`, and a
+  page at `MAX_PAGE_BYTES` (decompressed). Reaching the first two ends the story with a note
+  in the job log, and raising the limit and retrying carries on. `0` turns a limit off.
+- **The job log** is written in batches (every 25 chapters or 3 seconds) rather than once per
+  chapter, so a long story does not rewrite an ever-growing log thousands of times.
 - **Lost workers are noticed.** A running job's worker records a heartbeat, and the API
   fails any running job that has been silent for two minutes, so a job killed by a deploy
   or the OOM killer shows as failed with a reason and can be retried. See
