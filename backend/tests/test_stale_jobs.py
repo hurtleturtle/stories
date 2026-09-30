@@ -223,7 +223,7 @@ def recorded_by_db_clock(job_id: str, column: str) -> bool:
 
     from app.db import get_sync_db
 
-    assert column in ("started_at", "heartbeat_at")
+    assert column in ("started_at", "heartbeat_at", "finished_at", "email_sent_at")
     with get_sync_db() as session:
         return session.execute(
             text(
@@ -234,37 +234,66 @@ def recorded_by_db_clock(job_id: str, column: str) -> bool:
         ).scalar_one()
 
 
-@pytest.mark.parametrize("skew", [timedelta(hours=-1), timedelta(hours=1)], ids=["behind", "ahead"])
-async def test_heartbeats_use_the_database_clock_not_the_workers(
-    auth_client, fake_pipeline, monkeypatch, skew
+async def test_the_worker_never_reads_its_own_clock(
+    auth_client, fake_pipeline, smtp_settings, monkeypatch
 ):
-    """The sweep compares heartbeats with the database's now(). A worker whose
-    own clock is wrong must not look dead (clock behind) or immortal (ahead)."""
+    """Every timestamp the worker records comes from the database's now(), so a
+    worker with a wrong clock can neither look dead nor immortal to the sweep,
+    and all the job's timestamps can be compared with each other.
+
+    Any use of `datetime` in the worker module would hit the trap below."""
     from app.worker import tasks
     from app.worker.tasks import run_story_job
 
-    real_datetime = datetime
-
-    class SkewedDatetime(datetime):
+    class NoWorkerClock:
         @classmethod
-        def now(cls, tz=None):
-            return real_datetime.now(tz) + skew
+        def now(cls, *args, **kwargs):
+            raise AssertionError("the worker read its own clock")
 
     class SlowStory(tasks.Story):
         def write(self, output_dir):
             time.sleep(0.3)  # long enough for several beats
             return super().write(output_dir)
 
-    monkeypatch.setattr(tasks, "datetime", SkewedDatetime)
+    monkeypatch.setattr(tasks, "datetime", NoWorkerClock, raising=False)
     monkeypatch.setattr(tasks, "Story", SlowStory)
+    monkeypatch.setattr(tasks, "send_ebook", lambda title, path, cfg: None)
     monkeypatch.setattr(settings, "job_heartbeat_interval_seconds", 0.05)
-    body = await create_job(auth_client)
+    await auth_client.put("/api/settings", json=smtp_settings)
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/chapter-1", "send_email": True}
+    )
+    job_id = resp.json()["id"]
 
-    run_story_job(body["id"])
+    run_story_job(job_id)
 
-    assert load_job(body["id"]).status.value == "success"
-    assert recorded_by_db_clock(body["id"], "started_at")
-    assert recorded_by_db_clock(body["id"], "heartbeat_at")
+    job = load_job(job_id)
+    assert job.status.value == "success", job.error
+    assert job.email_status.value == "sent"
+    for column in ("started_at", "heartbeat_at", "finished_at", "email_sent_at"):
+        assert recorded_by_db_clock(job_id, column), column
+
+
+async def test_a_resent_email_is_timestamped_by_the_database_clock(
+    auth_client, make_job, smtp_settings, monkeypatch
+):
+    from app.worker import tasks
+    from app.worker.tasks import email_artifact_task
+
+    class NoWorkerClock:
+        @classmethod
+        def now(cls, *args, **kwargs):
+            raise AssertionError("the worker read its own clock")
+
+    monkeypatch.setattr(tasks, "datetime", NoWorkerClock, raising=False)
+    monkeypatch.setattr(tasks, "send_ebook", lambda title, path, cfg: None)
+    await auth_client.put("/api/settings", json=smtp_settings)
+    job_id = await make_job()
+
+    email_artifact_task(job_id)
+
+    assert load_job(job_id).email_status.value == "sent"
+    assert recorded_by_db_clock(job_id, "email_sent_at")
 
 
 def test_the_default_threshold_tolerates_several_missed_heartbeats():

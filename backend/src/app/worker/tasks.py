@@ -8,7 +8,6 @@ import threading
 import traceback
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -53,9 +52,11 @@ def _claim_job(session, job_id: UUID, task_id: str | None) -> bool:
     """Move a pending job to running, atomically. False if it was not pending
     - cancelled while queued, or already claimed by another delivery of the
     same task (a redelivery after a broker visibility timeout, say)."""
-    # The database's clock, like every heartbeat: the stale-job sweep compares
-    # heartbeat_at against the database's now(), so both sides must agree on
-    # the time whatever this worker's own clock says.
+    # The worker never reads its own clock: every timestamp it records is the
+    # database's now(). The stale-job sweep compares heartbeat_at against the
+    # database's now(), so writer and sweep must agree on the time whatever
+    # this machine's clock says, and one clock everywhere keeps every
+    # timestamp comparable.
     claimed = session.execute(
         update(Job)
         .where(Job.id == job_id, Job.status == JobStatus.pending)
@@ -158,7 +159,7 @@ def _run_claimed_job(session, job_id: str) -> None:
     finally:
         job = session.get(Job, UUID(job_id))
         if job is not None:
-            job.finished_at = datetime.now(UTC)
+            job.finished_at = func.now()
             session.commit()
 
 
@@ -192,7 +193,7 @@ def _send_to_kindle(session, job: Job, ebook_file: Path) -> None:
 
     job.email_status = EmailStatus.sent
     job.email_error = None
-    job.email_sent_at = datetime.now(UTC)
+    job.email_sent_at = func.now()
     _append_log(job, f"Emailed {ebook_file.name} to {smtp.to_addr}.")
 
 
