@@ -81,12 +81,12 @@ async def test_task_without_an_artifact_id_sends_the_ebook(
     from app.worker.tasks import email_artifact_task
 
     await auth_client.put("/api/settings", json=smtp_settings)
-    job_id = await make_job(kinds=("html", "epub", "mobi"), ebook_type="mobi")
+    job_id = await make_job(kinds=("html", "epub", "azw3"), ebook_type="azw3")
 
     with patch("app.worker.tasks.send_ebook") as send_ebook:
         email_artifact_task(job_id)
 
-    assert send_ebook.call_args.args[1].name == "My_Book.mobi"
+    assert send_ebook.call_args.args[1].name == "My_Book.azw3"
 
 
 async def test_task_reports_a_job_with_nothing_sendable(auth_client, make_job, smtp_settings):

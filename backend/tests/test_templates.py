@@ -38,11 +38,11 @@ def test_resolve_config_template_can_override_title_and_type():
     --title or --type because both had truthy argparse defaults."""
     config = resolve_config(
         "https://example.com/chapter-1",
-        template={"title": "Templated Title", "type": "mobi"},
+        template={"title": "Templated Title", "type": "azw3"},
         overrides={"title": None, "ebook_type": None},
     )
     assert config.title == "Templated Title"
-    assert config.ebook_type == "mobi"
+    assert config.ebook_type == "azw3"
 
 
 def test_resolve_config_explicit_override_wins_over_template():

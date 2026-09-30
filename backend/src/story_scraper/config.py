@@ -2,8 +2,95 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+import re
+from importlib import resources
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# The formats a job can produce, in order of preference for sending to Kindle. Also
+# used as a file extension and passed to Calibre, so it must be a known name and
+# never free text. MOBI is no longer offered: Send to Kindle takes EPUB instead.
+EBOOK_TYPES = ("epub", "azw3", "pdf")
+
+
+def _supported_ebook_type(value: str) -> str:
+    if value not in EBOOK_TYPES:
+        raise ValueError(
+            f"Unsupported ebook type {value!r}; choose one of: {', '.join(EBOOK_TYPES)}"
+        )
+    return value
+
+
+EbookType = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, to_lower=True),
+    AfterValidator(_supported_ebook_type),
+]
+
+
+
+def asset_names(kind: str) -> list[str]:
+    """Names of the bundled files of one kind ("styles" or "scripts")."""
+    folder = resources.files("story_scraper.assets") / kind
+    return sorted(entry.name for entry in folder.iterdir() if entry.is_file())
+
+
+def read_asset(kind: str, name: str) -> str:
+    """Contents of a bundled asset. Only bundled names are accepted, so a
+    user-supplied value cannot select any other file on the machine."""
+    if name not in asset_names(kind):
+        raise ValueError(f"Unknown {kind.rstrip('s')} {name!r}")
+    return (resources.files("story_scraper.assets") / kind / name).read_text(encoding="utf-8")
+
+
+def _bundled(kind: str):
+    def check(name: str) -> str:
+        available = asset_names(kind)
+        if name not in available:
+            raise ValueError(
+                f"Unknown {kind.rstrip('s')} {name!r}; available: {', '.join(available)}"
+            )
+        return name
+
+    return AfterValidator(check)
+
+
+# Passed to Calibre as command-line values, so kept to something plain.
+AuthorName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=200, pattern=r"^[^\x00-\x1f\x7f]+$"
+    ),
+]
+# A language code such as en, eng, en-GB or zh-Hans.
+LanguageCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, max_length=35, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+    ),
+]
+
+StyleName = Annotated[str, _bundled("styles")]
+ScriptName = Annotated[str, _bundled("scripts")]
+
+_UNSAFE_FILENAME_CHARS = re.compile(r'[\x00-\x1f\x7f/\\:*?"<>|]')
+_MAX_FILENAME_BYTES = 200  # leaves room for an extension under the usual 255 limit
+
+
+def safe_filename(name: str, fallback: str = "book") -> str:
+    """Turn arbitrary text (a story title) into one safe path component.
+
+    Path separators and characters some filesystems reject are dropped,
+    whitespace becomes underscores, and leading/trailing dots go so the
+    result can be neither hidden nor `..`. Length is capped in bytes, since
+    non-Latin titles take several bytes per character.
+    """
+    cleaned = re.sub(r"\s", "_", name.strip())  # before the strip below, which drops \t and \n
+    cleaned = _UNSAFE_FILENAME_CHARS.sub("", cleaned).strip(".")
+    cleaned = cleaned.encode("utf-8")[:_MAX_FILENAME_BYTES].decode("utf-8", errors="ignore")
+    return cleaned or fallback
 
 
 class StoryConfig(BaseModel):
@@ -15,14 +102,16 @@ class StoryConfig(BaseModel):
     container: str = "div.chapter-content"
     next_selector: str = "a#next_chap"
     detect_title: str | None = None
-    style: str = "white-style.css"
-    scripts: list[str] = Field(default_factory=list)
-    ebook_type: str = "epub"
+    style: StyleName = "white-style.css"
+    scripts: list[ScriptName] = Field(default_factory=list)
+    ebook_type: EbookType = "epub"
+    author: AuthorName | None = None
+    language: LanguageCode | None = None
     num_chapters: int | None = None
     verbosity: int = 0
 
     def resolved_filename(self) -> str:
-        return self.filename or self.title.replace(" ", "_")
+        return safe_filename(self.filename or self.title)
 
 
 class Settings(BaseSettings):
@@ -37,6 +126,29 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     allow_registration: bool = True
     access_token_expire_minutes: int = 60 * 24
+
+    # ebook-convert has been seen to hang; without a limit it holds a worker forever.
+    conversion_timeout_seconds: int = 30 * 60
+
+    # Ceilings on one scrape, so a site that never ends (or serves an enormous page)
+    # cannot hold a worker for ever. 0 turns a limit off. A scrape that hits the
+    # chapter or time limit stops with a note in the job log and can be resumed
+    # after raising it. Keep max_scrape_seconds + conversion_timeout_seconds under
+    # broker_visibility_timeout_seconds, or a long job is handed to a second worker.
+    max_chapters: int = 20_000
+    max_scrape_seconds: float = 6 * 60 * 60
+    max_page_bytes: int = 10 * 1024 * 1024
+
+    # A running job's worker refreshes jobs.heartbeat_at this often. A job with
+    # no heartbeat for stale_after seconds is taken to have lost its worker and
+    # is failed; the API sweeps for such jobs every sweep_interval seconds.
+    # stale_after must comfortably exceed the heartbeat interval.
+    job_heartbeat_interval_seconds: float = 30
+    job_stale_after_seconds: float = 2 * 60
+    stale_job_sweep_interval_seconds: float = 60
+    # How long the broker waits for a task to finish before handing it to
+    # another worker. Must exceed the longest scrape, or a long job runs twice.
+    broker_visibility_timeout_seconds: int = 12 * 60 * 60
 
     email_from: str | None = None
     email_to: str | None = None

@@ -59,29 +59,29 @@ async def test_resend_honours_an_explicitly_chosen_artifact(
     auth_client, make_job, smtp_settings, queued_tasks
 ):
     await auth_client.put("/api/settings", json=smtp_settings)
-    job_id = await make_job(kinds=("html", "epub", "mobi"))
+    job_id = await make_job(kinds=("html", "epub", "azw3"))
 
     job = (await auth_client.get(f"/api/jobs/{job_id}")).json()
-    mobi = next(a for a in job["artifacts"] if a["kind"] == "mobi")
+    azw3 = next(a for a in job["artifacts"] if a["kind"] == "azw3")
 
     resp = await auth_client.post(
-        f"/api/jobs/{job_id}/email", json={"artifact_id": mobi["id"]}
+        f"/api/jobs/{job_id}/email", json={"artifact_id": azw3["id"]}
     )
 
     assert resp.status_code == 202, resp.text
-    assert email_dispatches(queued_tasks)[-1][1][1] == mobi["id"]
+    assert email_dispatches(queued_tasks)[-1][1][1] == azw3["id"]
 
 
 async def test_resend_picks_the_format_the_job_produced(
     auth_client, make_job, smtp_settings, queued_tasks
 ):
     await auth_client.put("/api/settings", json=smtp_settings)
-    job_id = await make_job(kinds=("html", "epub", "mobi"), ebook_type="mobi")
+    job_id = await make_job(kinds=("html", "epub", "azw3"), ebook_type="azw3")
 
     resp = await auth_client.post(f"/api/jobs/{job_id}/email", json={})
 
     artifacts = {a["id"]: a["kind"] for a in resp.json()["artifacts"]}
-    assert artifacts[email_dispatches(queued_tasks)[-1][1][1]] == "mobi"
+    assert artifacts[email_dispatches(queued_tasks)[-1][1][1]] == "azw3"
 
 
 @pytest.mark.parametrize("status", ["pending", "running", "failed", "cancelled"])

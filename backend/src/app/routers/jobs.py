@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from pydantic import ValidationError
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -14,8 +16,9 @@ from app.models import EmailStatus, Job, JobStatus, Template, User, UserSettings
 from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut
 from app.services.email import missing_smtp_fields, pick_sendable_artifact
 from app.services.jobs import build_job_config
-from app.services.storage import remove_job_files
+from app.services.storage import remove_job_files, resolve_stored_path
 from app.worker.celery_app import celery_app
+from story_scraper.urlsafety import UnsafeURLError, assert_public_url
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
@@ -36,6 +39,12 @@ async def _get_owned_job(db: AsyncSession, user: User, job_id: UUID) -> Job:
 async def create_job(
     data: JobCreate, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
 ) -> Job:
+    try:
+        # Resolves DNS, so keep it off the event loop.
+        await run_in_threadpool(assert_public_url, data.url)
+    except UnsafeURLError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
     template = None
     if data.template_id is not None:
         template = await db.get(Template, data.template_id)
@@ -43,14 +52,31 @@ async def create_job(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
 
     overrides = data.model_dump(exclude={"url", "template_id", "send_email"})
-    config = build_job_config(data.url, template, overrides)
+    try:
+        config = build_job_config(data.url, template, overrides)
+    except ValidationError as exc:
+        # The request itself was validated already, so this is a value stored on
+        # the template that is not accepted any more (a stylesheet that was
+        # removed, a format that was dropped).
+        problems = "; ".join(
+            f"{'.'.join(str(part) for part in error['loc'])}: "
+            f"{error['msg'].removeprefix('Value error, ')}"
+            for error in exc.errors()
+        )
+        name = f"Template {template.name!r}" if template else "This job"
+        detail = f"{name} has settings that are not valid: {problems}"
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail) from exc
 
+    # Chosen up front so the id is on the job from the moment it can be
+    # cancelled, rather than only once a worker picks it up.
+    task_id = str(uuid4())
     job = Job(
         owner_id=user.id,
         template_id=template.id if template else None,
         url=data.url,
         title=config.title,
         status=JobStatus.pending,
+        celery_task_id=task_id,
         config={**config.model_dump(), "send_email": data.send_email},
         num_chapters=config.num_chapters,
     )
@@ -58,7 +84,7 @@ async def create_job(
     await db.commit()
     await db.refresh(job)
 
-    celery_app.send_task("app.worker.tasks.run_story_job", args=[str(job.id)])
+    celery_app.send_task("app.worker.tasks.run_story_job", args=[str(job.id)], task_id=task_id)
     return job
 
 
@@ -103,7 +129,9 @@ async def retry_job(
             status.HTTP_409_CONFLICT, "Only failed or cancelled jobs can be retried"
         )
 
+    task_id = str(uuid4())
     job.status = JobStatus.pending
+    job.celery_task_id = task_id
     job.error = None
     job.chapters_scraped = 0
     job.started_at = None
@@ -114,7 +142,7 @@ async def retry_job(
     await db.commit()
     await db.refresh(job)
 
-    celery_app.send_task("app.worker.tasks.run_story_job", args=[str(job.id)])
+    celery_app.send_task("app.worker.tasks.run_story_job", args=[str(job.id)], task_id=task_id)
     return job
 
 
@@ -122,14 +150,33 @@ async def retry_job(
 async def cancel_job(
     job_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
 ) -> Job:
-    job = await _get_owned_job(db, user, job_id)
-    if job.status != JobStatus.pending:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Only pending jobs can be cancelled")
+    """Cancel a job that is queued or running.
 
-    if job.celery_task_id:
-        celery_app.control.revoke(job.celery_task_id)
-    job.status = JobStatus.cancelled
+    A queued job is simply not run. A running one is marked cancelled and its
+    worker stops at the next chapter; the chapters already scraped are kept, so
+    a retry carries on from them."""
+    job = await _get_owned_job(db, user, job_id)
+    if job.status not in (JobStatus.pending, JobStatus.running):
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Only pending or running jobs can be cancelled"
+        )
+
+    # Conditional, so a job that finishes between the check above and this write
+    # is not overwritten.
+    was_pending = job.status == JobStatus.pending
+    cancelled = await db.execute(
+        update(Job)
+        .where(Job.id == job.id, Job.status.in_([JobStatus.pending, JobStatus.running]))
+        .values(status=JobStatus.cancelled)
+    )
     await db.commit()
+    if cancelled.rowcount == 0:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Job has already finished")
+
+    # Best effort for a queued job: the worker also refuses any job that is no
+    # longer pending. A running one notices through its progress updates.
+    if was_pending and job.celery_task_id:
+        celery_app.control.revoke(job.celery_task_id)
     await db.refresh(job)
     return job
 
@@ -156,9 +203,14 @@ async def download_artifact(
     if artifact is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact not found")
 
-    return FileResponse(
-        artifact.path, media_type=artifact.content_type, filename=artifact.filename
-    )
+    try:
+        path = resolve_stored_path(artifact.path)
+    except ValueError:
+        path = None
+    if path is None or not path.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact file is no longer available")
+
+    return FileResponse(path, media_type=artifact.content_type, filename=artifact.filename)
 
 
 @router.post("/{job_id}/email", response_model=JobOut, status_code=status.HTTP_202_ACCEPTED)

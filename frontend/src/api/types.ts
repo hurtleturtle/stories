@@ -70,8 +70,17 @@ export interface JobCreateInput {
   style?: string;
   scripts?: string[];
   ebook_type?: string;
+  author?: string;
+  language?: string;
   num_chapters?: number;
   send_email?: boolean;
+}
+
+/** The values the API accepts for settings chosen from a fixed list. */
+export interface Options {
+  ebook_types: string[];
+  styles: string[];
+  scripts: string[];
 }
 
 export interface UserSettingsInput {

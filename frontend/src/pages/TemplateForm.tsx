@@ -3,8 +3,18 @@ import { useEffect, useState } from "react";
 import { LuSave } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
-import { createTemplate, listTemplates, updateTemplate } from "../api/endpoints";
+import { createTemplate, getOptions, listTemplates, updateTemplate } from "../api/endpoints";
 import type { TemplateInput } from "../api/types";
+
+/**
+ * The choices for a dropdown: what the API offers, plus the template's current
+ * value if it is no longer offered (an old template), so it stays visible and
+ * can be changed instead of silently showing something else.
+ */
+function choicesFor(offered: string[] | undefined, current: string): string[] {
+  const list = offered ?? [];
+  return current && !list.includes(current) ? [current, ...list] : list;
+}
 
 const EMPTY: TemplateInput = {
   name: "",
@@ -25,6 +35,11 @@ export default function TemplateForm() {
 
   const { data: templates } = useQuery({ queryKey: ["templates"], queryFn: listTemplates });
   const existing = !isNew ? templates?.find((t) => t.id === id) : undefined;
+  const { data: options } = useQuery({
+    queryKey: ["options"],
+    queryFn: getOptions,
+    staleTime: Infinity,
+  });
 
   const [form, setForm] = useState<TemplateInput>(EMPTY);
 
@@ -99,14 +114,23 @@ export default function TemplateForm() {
           />
         </label>
         <label>
-          Stylesheet filename
-          <input value={form.style} onChange={(e) => set("style", e.target.value)} />
+          Stylesheet
+          <select value={form.style} onChange={(e) => set("style", e.target.value)}>
+            {choicesFor(options?.styles, form.style ?? "").map((style) => (
+              <option key={style} value={style}>
+                {options && !options.styles.includes(style) ? `${style} (no longer available)` : style}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           Ebook type
           <select value={form.ebook_type} onChange={(e) => set("ebook_type", e.target.value)}>
-            <option value="epub">epub</option>
-            <option value="mobi">mobi</option>
+            {choicesFor(options?.ebook_types, form.ebook_type ?? "").map((type) => (
+              <option key={type} value={type}>
+                {options && !options.ebook_types.includes(type) ? `${type} (no longer available)` : type}
+              </option>
+            ))}
           </select>
         </label>
         {mutation.isError && (

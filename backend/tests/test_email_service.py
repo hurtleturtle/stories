@@ -59,9 +59,9 @@ def artifact(kind: str) -> Artifact:
 
 def test_pick_sendable_artifact_prefers_the_jobs_own_format():
     chosen = pick_sendable_artifact(
-        [artifact("html"), artifact("epub"), artifact("mobi")], preferred_kind="mobi"
+        [artifact("html"), artifact("epub"), artifact("azw3")], preferred_kind="azw3"
     )
-    assert chosen is not None and chosen.kind == "mobi"
+    assert chosen is not None and chosen.kind == "azw3"
 
 
 def test_pick_sendable_artifact_never_returns_the_intermediate_html():
@@ -69,10 +69,10 @@ def test_pick_sendable_artifact_never_returns_the_intermediate_html():
 
 
 def test_pick_sendable_artifact_falls_back_when_the_preferred_format_is_absent():
-    chosen = pick_sendable_artifact([artifact("html"), artifact("epub")], preferred_kind="mobi")
+    chosen = pick_sendable_artifact([artifact("html"), artifact("epub")], preferred_kind="azw3")
     assert chosen is not None and chosen.kind == "epub"
 
 
 def test_pick_sendable_artifact_with_no_preference_picks_an_ebook():
-    chosen = pick_sendable_artifact([artifact("html"), artifact("mobi"), artifact("epub")])
+    chosen = pick_sendable_artifact([artifact("html"), artifact("azw3"), artifact("epub")])
     assert chosen is not None and chosen.kind == "epub"

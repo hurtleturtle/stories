@@ -132,6 +132,8 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
+    # Refreshed by the worker while the job runs; how a lost worker is noticed.
+    heartbeat_at: Mapped[datetime | None]
 
     owner: Mapped[User] = relationship(back_populates="jobs")
     template: Mapped[Template | None] = relationship(back_populates="jobs")

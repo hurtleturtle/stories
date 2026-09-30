@@ -27,7 +27,9 @@ def parse_args(argv: list[str] | None = None) -> Namespace:
     story.add_argument("-d", "--detect-title", help="CSS selector for chapter title")
     story.add_argument("-s", "--scripts", help="Comma-separated scripts to add to <head>")
     story.add_argument("--style", help="Stylesheet filename")
-    story.add_argument("--type", dest="ebook_type", help="Ebook type, e.g. epub or mobi")
+    story.add_argument("--type", dest="ebook_type", help="Ebook type: epub, azw3 or pdf")
+    story.add_argument("--author", help="Author to record in the ebook")
+    story.add_argument("--language", help="Language code, e.g. en or en-GB")
     story.add_argument("--num-chapters", type=int, help="Stop after this many chapters")
     story.add_argument("-v", dest="verbosity", action="count", default=0)
 
@@ -59,6 +61,8 @@ def main(argv: list[str] | None = None) -> None:
         "scripts": args.scripts.split(",") if args.scripts else None,
         "style": args.style,
         "ebook_type": args.ebook_type,
+        "author": args.author,
+        "language": args.language,
         "num_chapters": args.num_chapters,
         "verbosity": args.verbosity,
     }
@@ -68,14 +72,25 @@ def main(argv: list[str] | None = None) -> None:
     ebook_name = f"{config.resolved_filename()}.{config.ebook_type}"
     ebook_file = output_dir / config.ebook_type / ebook_name
 
-    with Story(config, progress=lambda n, u: logging.info("Chapter %d: %s", n, u)) as story:
+    # Running locally, so scraping a private-network address is the user's call.
+    with Story(
+        config,
+        progress=lambda n, u: logging.info("Chapter %d: %s", n, u),
+        allow_private_hosts=True,
+    ) as story:
         if not args.no_download:
             html_file = story.write(output_dir / "html")
         else:
             html_file = output_dir / "html" / f"{config.resolved_filename()}.html"
 
     if not args.no_convert:
-        convert(html_file, ebook_file, config.title)
+        convert(
+            html_file,
+            ebook_file,
+            config.title,
+            authors=config.author,
+            language=config.language,
+        )
 
     if not args.no_email:
         if not (settings.email_from and settings.email_to and settings.email_password):

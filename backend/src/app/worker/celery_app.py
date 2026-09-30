@@ -17,4 +17,7 @@ celery_app.conf.update(
     task_acks_late=True,
     worker_prefetch_multiplier=1,
     task_default_queue="story_jobs",
+    # Redis redelivers an unacknowledged task after this long (default 1 hour),
+    # and with acks_late a long scrape is unacknowledged until it finishes.
+    broker_transport_options={"visibility_timeout": settings.broker_visibility_timeout_seconds},
 )

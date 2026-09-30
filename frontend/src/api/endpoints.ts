@@ -11,6 +11,7 @@ import type {
   Template,
   TemplateInput,
   User,
+  Options,
   UserSettings,
   UserSettingsInput,
 } from "./types";
@@ -88,6 +89,11 @@ export async function deleteTemplate(id: string): Promise<void> {
 
 export async function importBuiltinTemplates(): Promise<Template[]> {
   const { data } = await api.post("/templates/import");
+  return data;
+}
+
+export async function getOptions(): Promise<Options> {
+  const { data } = await api.get("/options");
   return data;
 }
 

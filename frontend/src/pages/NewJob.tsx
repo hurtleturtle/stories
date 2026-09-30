@@ -9,6 +9,8 @@ export default function NewJob() {
   const [url, setUrl] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
+  const [author, setAuthor] = useState("");
+  const [language, setLanguage] = useState("");
   const [numChapters, setNumChapters] = useState("");
   const [sendEmail, setSendEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,6 +43,8 @@ export default function NewJob() {
       url,
       template_id: templateId || null,
       title: title || undefined,
+      author: author.trim() || undefined,
+      language: language.trim() || undefined,
       num_chapters: numChapters ? Number(numChapters) : undefined,
       send_email: sendEmail,
     });
@@ -74,6 +78,18 @@ export default function NewJob() {
         <label>
           Title (optional)
           <input value={title} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label>
+          Author (optional)
+          <input value={author} onChange={(e) => setAuthor(e.target.value)} />
+        </label>
+        <label>
+          Language (optional)
+          <input
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            placeholder="en"
+          />
         </label>
         <label>
           Stop after N chapters (optional)

@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import EmailStatus, JobStatus, UserRole
+from story_scraper.config import AuthorName, EbookType, LanguageCode, ScriptName, StyleName
 
 
 class UserCreate(BaseModel):
@@ -72,7 +73,9 @@ class TemplateBase(BaseModel):
 
 
 class TemplateCreate(TemplateBase):
-    pass
+    style: StyleName = "white-style.css"
+    scripts: list[ScriptName] = []
+    ebook_type: EbookType = "epub"
 
 
 class TemplateUpdate(BaseModel):
@@ -81,9 +84,9 @@ class TemplateUpdate(BaseModel):
     container: str | None = None
     next_selector: str | None = None
     detect_title: str | None = None
-    style: str | None = None
-    scripts: list[str] | None = None
-    ebook_type: str | None = None
+    style: StyleName | None = None
+    scripts: list[ScriptName] | None = None
+    ebook_type: EbookType | None = None
     extra: dict | None = None
 
 
@@ -93,6 +96,12 @@ class TemplateOut(TemplateBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+
+
+class OptionsOut(BaseModel):
+    ebook_types: list[str]
+    styles: list[str]
+    scripts: list[str]
 
 
 class UserSettingsIn(BaseModel):
@@ -125,9 +134,11 @@ class JobCreate(BaseModel):
     container: str | None = None
     next_selector: str | None = None
     detect_title: str | None = None
-    style: str | None = None
-    scripts: list[str] | None = None
-    ebook_type: str | None = None
+    style: StyleName | None = None
+    scripts: list[ScriptName] | None = None
+    ebook_type: EbookType | None = None
+    author: AuthorName | None = None
+    language: LanguageCode | None = None
     num_chapters: int | None = None
     send_email: bool = False
 

@@ -10,6 +10,7 @@ Without it they skip, so the default `uv run pytest` still needs no DB.
 
 from __future__ import annotations
 
+import ipaddress
 import os
 from collections.abc import AsyncIterator
 from uuid import uuid4
@@ -26,6 +27,33 @@ if TEST_DATABASE_URL:
     os.environ["DATABASE_URL_SYNC"] = f"postgresql+psycopg://{_bare}"
     os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
+PUBLIC_TEST_ADDRESS = "93.184.216.34"
+
+
+@pytest.fixture(autouse=True)
+def stub_dns(monkeypatch):
+    """Name lookups for the scraper's internal-address check, without a real
+    resolver: IP literals stand for themselves, any other host is public.
+    Tests that need a host to be internal override this themselves."""
+
+    def fake_resolve_host(host: str, port: int | None) -> list[str]:
+        try:
+            ipaddress.ip_address(host)
+        except ValueError:
+            return [PUBLIC_TEST_ADDRESS]
+        return [host]
+
+    monkeypatch.setattr("story_scraper.urlsafety.resolve_host", fake_resolve_host)
+
+
+@pytest.fixture(autouse=True)
+def retry_sleeps(monkeypatch) -> list[float]:
+    """Skip the scraper's retry pauses, recording how long each would have been."""
+    pauses: list[float] = []
+    monkeypatch.setattr("story_scraper.scraper._sleep", pauses.append)
+    return pauses
+
+
 @pytest.fixture
 async def db_engine():
     """A schema created fresh for each test. Skips when no DB is configured,
@@ -34,11 +62,17 @@ async def db_engine():
         pytest.skip("TEST_DATABASE_URL is not set")
 
     from app import models  # noqa: F401 - registers the tables on Base
-    from app.db import Base, async_engine
+    from app.db import Base, async_engine, sync_engine
 
     # Each test runs in its own event loop, and pooled connections belong to
     # the loop that opened them - so the pool is emptied either side.
+    #
+    # The sync engine (the worker's) needs the same, for another reason: after
+    # five runs psycopg keeps a statement prepared on the connection, and the
+    # tables are dropped and recreated under it between tests, which Postgres
+    # answers with "cached plan must not change result type".
     await async_engine.dispose()
+    sync_engine.dispose()
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
@@ -48,17 +82,28 @@ async def db_engine():
         async with async_engine.begin() as conn:
             await conn.run_sync(Base.metadata.drop_all)
         await async_engine.dispose()
+        sync_engine.dispose()
+
+
+class QueuedTasks(list):
+    """(name, args) for each dispatch; `.kwargs` holds the matching send_task
+    keyword arguments (task_id and so on)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.kwargs: list[dict] = []
 
 
 @pytest.fixture
-async def queued_tasks(monkeypatch) -> list[tuple]:
+async def queued_tasks(monkeypatch) -> QueuedTasks:
     """Capture Celery dispatches instead of needing a live broker."""
     from app.worker import celery_app as celery_module
 
-    sent: list[tuple] = []
+    sent = QueuedTasks()
 
     def fake_send_task(name, args=None, **kwargs):
         sent.append((name, list(args or [])))
+        sent.kwargs.append(kwargs)
 
     monkeypatch.setattr(celery_module.celery_app, "send_task", fake_send_task)
     return sent
@@ -143,3 +188,40 @@ async def auth_client(client):
     assert resp.status_code == 200, resp.text
     client.headers["Authorization"] = f"Bearer {resp.json()['access_token']}"
     return client
+
+
+@pytest.fixture
+def fake_pipeline(monkeypatch, tmp_path):
+    """Replace scraping and conversion in the worker; records what ran."""
+    ran: list[str] = []
+
+    class FakeStory:
+        chapters_done = 0
+        stop_reason = None
+
+        def __init__(self, config, progress=None, work_dir=None):
+            self.config = config
+            self.progress = progress
+
+        def __enter__(self):
+            ran.append("scrape")
+            return self
+
+        def __exit__(self, *exc_info):
+            pass
+
+        def write(self, output_dir):
+            self.progress(1, "https://example.com/chapter-1")
+            html = output_dir / f"{self.config.resolved_filename()}.html"
+            html.write_text("<html></html>")
+            return html
+
+    def fake_convert(html_file, ebook_file, title, timeout=None, **metadata):
+        ran.append("convert")
+        ebook_file.write_text("ebook")
+        return ebook_file
+
+    monkeypatch.setattr("app.worker.tasks.Story", FakeStory)
+    monkeypatch.setattr("app.worker.tasks.convert", fake_convert)
+    monkeypatch.setattr("app.worker.tasks.job_dir", lambda owner_id, job_id: tmp_path)
+    return ran
