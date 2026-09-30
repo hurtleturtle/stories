@@ -4,6 +4,7 @@ finished ebook to Kindle."""
 from __future__ import annotations
 
 import logging
+import shutil
 import threading
 import traceback
 from collections.abc import Iterator
@@ -25,10 +26,16 @@ from story_scraper.scraper import Story
 
 logger = logging.getLogger(__name__)
 
+# Where a job's chapters are kept while it is being scraped, inside its own
+# folder. A retry finds them there and carries on; they go once the job succeeds.
+CHAPTERS_DIR = ".chapters"
+
 CONTENT_TYPES = {
     "html": "text/html",
     "epub": "application/epub+zip",
     "mobi": "application/x-mobipocket-ebook",
+    "azw3": "application/vnd.amazon.ebook",
+    "pdf": "application/pdf",
 }
 
 
@@ -134,8 +141,18 @@ def _run_claimed_job(session, job_id: str) -> None:
             session.commit()
 
         output_dir = job_dir(job.owner_id, job.id)
-        with Story(config, progress=progress) as story:
+        work_dir = output_dir / CHAPTERS_DIR
+        with Story(config, progress=progress, work_dir=work_dir) as story:
+            if story.chapters_done:
+                # An earlier attempt stored these; the scrape picks up after them.
+                log_lines.extend((job.log or "").splitlines())
+                log_lines.append(f"Resuming after chapter {story.chapters_done}.")
+                job.chapters_scraped = story.chapters_done
+                job.log = "\n".join(log_lines)
+                session.commit()
             html_file = story.write(output_dir)
+            if story.stop_reason:
+                _append_log(job, story.stop_reason)
 
         # Committed now: if conversion fails, the scraped book is still worth
         # having, and the failure handler below rolls back to this point.
@@ -149,6 +166,7 @@ def _run_claimed_job(session, job_id: str) -> None:
         if job.config.get("send_email"):
             _send_to_kindle(session, job, ebook_file)
 
+        shutil.rmtree(work_dir, ignore_errors=True)  # only kept so a retry can resume
         job.status = JobStatus.success
     except Exception as exc:  # noqa: BLE001 - job failures must not crash the worker
         session.rollback()

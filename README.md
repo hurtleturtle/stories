@@ -56,10 +56,37 @@ A template is a set of CSS selectors for one site:
 - `detect_title` *optional* - selector for the chapter title
 - `style` *optional* - stylesheet filename bundled in `story_scraper/assets/styles` (other names are rejected); it is inlined into the generated HTML
 - `scripts` *optional* - script filenames bundled in `story_scraper/assets/scripts` (other names are rejected), inlined into the generated HTML's `<head>`
-- `ebook_type` *optional* - `epub` (default) or `mobi`
+- `ebook_type` *optional* - `epub` (default), `mobi`, `azw3` or `pdf`
 
 `backend/templates/*.yml` ships the original site templates (Royal Road,
 ReadNovelFull, etc.) as seed data for "Import built-in templates".
+
+## How a scrape works
+
+The scraper follows each chapter's `next_selector` link and writes every chapter to
+disk as it arrives (under the job's own folder, in `.chapters`), so memory stays flat
+however long the story is and nothing is lost if the worker dies.
+
+- **Retrying resumes.** A failed job that is retried carries on after its last stored
+  chapter instead of starting again, and one that failed only in conversion is not
+  scraped a second time. The stored chapters are removed once the job succeeds. They
+  are for the same story read the same way; change the URL or selectors and it starts
+  afresh. A finished story is not re-fetched, so a retry will not pick up chapters
+  published since.
+- **The story ends** when the next link runs out, `num_chapters` is reached, or the next
+  page is a 404/410, has no chapter content, was already fetched, or has **the same text
+  as an earlier chapter**. That last check hashes each chapter's text (and which pictures
+  it shows, but not its heading or markup) before it is stored, and stops sites that keep
+  serving their final page under new URLs. Why a story ended early is written to the job
+  log. Two genuinely different chapters with identical text (a repeated "on hiatus"
+  notice, say) would end the story at the second.
+- **Content is sanitised.** Scripts, styles, frames, plugins, event handlers, `javascript:`
+  links and comments are stripped from chapter text before it is stored, which also
+  removes the ad scripts many sites embed.
+- **Lost workers are noticed.** A running job's worker records a heartbeat, and the API
+  fails any running job that has been silent for two minutes, so a job killed by a deploy
+  or the OOM killer shows as failed with a reason and can be retried. See
+  `.env.example` for the intervals.
 
 ## CLI
 

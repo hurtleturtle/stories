@@ -9,10 +9,24 @@ from typing import Annotated
 from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Used as a file extension and passed to Calibre, so it must not be able to
-# carry a path or option. Calibre decides which formats it can actually write.
+# The formats a job can produce: what Kindle's personal-document service takes,
+# in order of preference. Also used as a file extension and passed to Calibre,
+# so it must be a known name and never free text.
+EBOOK_TYPES = ("epub", "mobi", "azw3", "pdf")
+
+
+def _supported_ebook_type(value: str) -> str:
+    if value not in EBOOK_TYPES:
+        raise ValueError(
+            f"Unsupported ebook type {value!r}; choose one of: {', '.join(EBOOK_TYPES)}"
+        )
+    return value
+
+
 EbookType = Annotated[
-    str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=r"^[A-Za-z0-9]{1,10}$")
+    str,
+    StringConstraints(strip_whitespace=True, to_lower=True),
+    AfterValidator(_supported_ebook_type),
 ]
 
 

@@ -76,6 +76,41 @@ async def test_an_ebook_type_that_could_carry_a_path_is_refused(auth_client, que
     assert queued_tasks == []
 
 
+async def test_an_unsupported_ebook_type_is_refused_and_the_choices_listed(
+    auth_client, queued_tasks
+):
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "ebook_type": "docx"}
+    )
+
+    assert resp.status_code == 422
+    assert "choose one of: epub, mobi, azw3, pdf" in resp.json()["detail"][0]["msg"]
+    assert queued_tasks == []
+
+
+@pytest.mark.parametrize("ebook_type", ["epub", "mobi", "azw3", "pdf", "PDF"])
+async def test_every_supported_ebook_type_can_be_requested(auth_client, ebook_type):
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "ebook_type": ebook_type}
+    )
+
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["artifacts"] == []
+
+
+def test_every_supported_ebook_type_has_a_content_type_and_an_email_mime_type():
+    from pathlib import Path
+
+    from app.worker.tasks import CONTENT_TYPES
+    from story_scraper.config import EBOOK_TYPES
+    from story_scraper.mailer import _mime_type
+
+    for kind in EBOOK_TYPES:
+        assert CONTENT_TYPES[kind] != "application/octet-stream", kind
+        assert _mime_type(Path(f"Book.{kind}"))[0] == "application", kind
+    assert _mime_type(Path("Book.azw3")) == ("application", "vnd.amazon.ebook")
+
+
 async def test_a_title_with_path_characters_is_accepted(auth_client):
     """The title is display text; only the filename derived from it is made safe."""
     resp = await auth_client.post(

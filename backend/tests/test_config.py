@@ -5,7 +5,13 @@ import pytest
 import respx
 from pydantic import ValidationError
 
-from story_scraper.config import StoryConfig, asset_names, read_asset, safe_filename
+from story_scraper.config import (
+    EBOOK_TYPES,
+    StoryConfig,
+    asset_names,
+    read_asset,
+    safe_filename,
+)
 
 
 @pytest.mark.parametrize(
@@ -122,3 +128,23 @@ def test_bundled_style_and_script_are_accepted():
     )
 
     assert config.style == "black-style.css"
+
+
+# --- ebook types -------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", EBOOK_TYPES)
+def test_every_supported_ebook_type_is_accepted(value):
+    assert StoryConfig(url="https://example.com/1", ebook_type=value).ebook_type == value
+
+
+@pytest.mark.parametrize("value", ["docx", "txt", "xyz", "epub2", "mobi.exe", "fb2", "html"])
+def test_ebook_types_outside_the_supported_list_are_rejected_with_the_choices(value):
+    with pytest.raises(ValidationError, match="choose one of: epub, mobi, azw3, pdf"):
+        StoryConfig(url="https://example.com/1", ebook_type=value)
+
+
+def test_the_supported_types_are_what_kindle_will_take():
+    from app.services.email import SENDABLE_KINDS
+
+    assert SENDABLE_KINDS == EBOOK_TYPES

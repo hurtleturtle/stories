@@ -7,10 +7,11 @@ from collections.abc import Iterable
 
 from app.models import Artifact, UserSettings
 from app.security import decrypt_secret
+from story_scraper.config import EBOOK_TYPES
 from story_scraper.mailer import SmtpConfig
 
 # Kindle's personal-document service rejects anything else.
-SENDABLE_KINDS = ("epub", "mobi", "azw3", "pdf")
+SENDABLE_KINDS = EBOOK_TYPES
 
 
 def missing_smtp_fields(row: UserSettings | None) -> list[str]:

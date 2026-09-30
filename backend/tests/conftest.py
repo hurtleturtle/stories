@@ -189,7 +189,10 @@ def fake_pipeline(monkeypatch, tmp_path):
     ran: list[str] = []
 
     class FakeStory:
-        def __init__(self, config, progress=None):
+        chapters_done = 0
+        stop_reason = None
+
+        def __init__(self, config, progress=None, work_dir=None):
             self.config = config
             self.progress = progress
 

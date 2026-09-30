@@ -1,6 +1,7 @@
 import httpx
 import pytest
 import respx
+from bs4 import BeautifulSoup
 
 from story_scraper.config import StoryConfig
 from story_scraper.scraper import ChapterNotFoundError, Story
@@ -40,10 +41,11 @@ def test_iter_chapters_follows_next_link_until_exhausted():
 
     with make_story() as story:
         chapters = list(story.iter_chapters())
+        html = story.download()
 
     assert [c for c, _ in chapters] == [1, 2]
-    assert "Once upon a time" in story.doc.body.get_text()
-    assert "The end" in story.doc.body.get_text()
+    assert "Once upon a time" in html
+    assert "The end" in html
 
 
 @respx.mock
@@ -92,9 +94,9 @@ def test_chapter_title_uses_detect_title_selector():
     respx.get("https://example.com/chapter-1").mock(return_value=httpx.Response(200, text=html))
 
     with make_story(detect_title="span.title") as story:
-        list(story.iter_chapters())
+        html = story.download()
 
-    heading = story.doc.select_one("h2.chapter-heading")
+    heading = BeautifulSoup(html, "lxml").select_one("h2.chapter-heading")
     assert heading.text == "Chapter 5 - A New Beginning"
 
 
@@ -139,9 +141,12 @@ def _story_url(path: str) -> str:
     return f"https://example.com/novel/{path}"
 
 
-def _chapter(next_href: str | None) -> str:
+def _chapter(next_href: str | None, text: str | None = None) -> str:
+    """A chapter page. Unless given, its text differs with where it links, so
+    the chapters of a test story are not taken for repeats of one another."""
     link = f'<a id="next_chap" href="{next_href}">Next</a>' if next_href is not None else ""
-    return f'<html><body><div class="chapter-content"><p>Text.</p></div>{link}</body></html>'
+    text = text if text is not None else f"Text before {next_href}."
+    return f'<html><body><div class="chapter-content"><p>{text}</p></div>{link}</body></html>'
 
 
 def _make_story_at(url: str, **overrides) -> Story:

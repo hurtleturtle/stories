@@ -11,6 +11,7 @@ from pathlib import Path
 MIME_OVERRIDES = {
     ".mobi": ("application", "x-mobipocket-ebook"),
     ".epub": ("application", "epub+zip"),
+    ".azw3": ("application", "vnd.amazon.ebook"),
 }
 
 
