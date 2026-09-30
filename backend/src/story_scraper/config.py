@@ -113,6 +113,15 @@ class Settings(BaseSettings):
     # ebook-convert has been seen to hang; without a limit it holds a worker forever.
     conversion_timeout_seconds: int = 30 * 60
 
+    # Ceilings on one scrape, so a site that never ends (or serves an enormous page)
+    # cannot hold a worker for ever. 0 turns a limit off. A scrape that hits the
+    # chapter or time limit stops with a note in the job log and can be resumed
+    # after raising it. Keep max_scrape_seconds + conversion_timeout_seconds under
+    # broker_visibility_timeout_seconds, or a long job is handed to a second worker.
+    max_chapters: int = 20_000
+    max_scrape_seconds: float = 6 * 60 * 60
+    max_page_bytes: int = 10 * 1024 * 1024
+
     # A running job's worker refreshes jobs.heartbeat_at this often. A job with
     # no heartbeat for stale_after seconds is taken to have lost its worker and
     # is failed; the API sweeps for such jobs every sweep_interval seconds.

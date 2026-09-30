@@ -10,6 +10,7 @@ import re
 import tempfile
 import time
 from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from typing import TextIO
@@ -19,7 +20,7 @@ import httpx
 from bs4 import BeautifulSoup, NavigableString, Tag
 
 from story_scraper.chapters import ChapterRecord, ChapterStore
-from story_scraper.config import StoryConfig, read_asset
+from story_scraper.config import StoryConfig, read_asset, settings
 from story_scraper.sanitize import sanitize
 from story_scraper.urlsafety import assert_public_url
 
@@ -59,6 +60,11 @@ def _sleep(seconds: float) -> None:
     time.sleep(seconds)
 
 
+def _monotonic() -> float:
+    """Indirection so tests can move the clock."""
+    return time.monotonic()
+
+
 def _retry_delay(attempt: int, response: httpx.Response | None) -> float:
     """Seconds to wait after failed attempt number `attempt` (0-based):
     exponential, unless the server said how long via Retry-After."""
@@ -74,6 +80,24 @@ def _retry_delay(attempt: int, response: httpx.Response | None) -> float:
 
 class ChapterNotFoundError(RuntimeError):
     """Raised when the configured container selector matches nothing."""
+
+
+class PageTooLargeError(RuntimeError):
+    """Raised when a page is bigger than the configured limit."""
+
+
+@dataclass(frozen=True)
+class Page:
+    """A fetched page: where it ended up, its bytes, and any charset the
+    server declared for them."""
+
+    url: str
+    content: bytes
+    charset: str | None
+
+    @property
+    def text(self) -> str:
+        return self.content.decode(self.charset or "utf-8", errors="replace")
 
 
 def _ends_story(exc: Exception) -> bool:
@@ -99,11 +123,21 @@ class Story:
         progress: ProgressCallback | None = None,
         allow_private_hosts: bool = False,
         work_dir: Path | None = None,
+        max_chapters: int | None = None,
+        max_scrape_seconds: float | None = None,
+        max_page_bytes: int | None = None,
     ) -> None:
         """`allow_private_hosts` skips the check that stops the scraper
         fetching internal addresses. It only applies to the client this
-        creates; a client passed in is used as given."""
+        creates; a client passed in is used as given.
+
+        The `max_*` limits (0 for none) default to the MAX_* settings."""
         self.config = config
+        self.max_chapters = settings.max_chapters if max_chapters is None else max_chapters
+        self.max_scrape_seconds = (
+            settings.max_scrape_seconds if max_scrape_seconds is None else max_scrape_seconds
+        )
+        self.max_page_bytes = settings.max_page_bytes if max_page_bytes is None else max_page_bytes
         self.progress = progress or (lambda count, message: None)
         self._owns_client = client is None
         # Runs for every request, so redirects and next links are covered too.
@@ -161,19 +195,39 @@ class Story:
         return BeautifulSoup(html, features="lxml")
 
     def fetch(self, url: str, retries: int = 3) -> str:
-        return self.fetch_response(url, retries).text
+        return self.fetch_page(url, retries).text
 
-    def fetch_response(self, url: str, retries: int = 3) -> httpx.Response:
-        """GET `url`, retrying server errors, rate limiting and network
+    def _download(self, url: str) -> Page:
+        """GET `url`, refusing a body bigger than `max_page_bytes`.
+
+        Streamed, so an oversized page is abandoned as soon as it crosses the
+        limit instead of being read into memory first. The limit applies to
+        the decompressed size, which also covers compression bombs."""
+        limit = self.max_page_bytes
+        with self.client.stream("GET", url) as response:
+            response.raise_for_status()
+            declared = response.headers.get("content-length", "")
+            if limit and declared.isdigit() and int(declared) > limit:
+                raise PageTooLargeError(f"{url} is {declared} bytes; the limit is {limit}")
+            chunks: list[bytes] = []
+            size = 0
+            for chunk in response.iter_bytes():
+                size += len(chunk)
+                if limit and size > limit:
+                    raise PageTooLargeError(f"{url} is over the {limit} byte limit")
+                chunks.append(chunk)
+            return Page(str(response.url), b"".join(chunks), response.charset_encoding)
+
+    def fetch_page(self, url: str, retries: int = 3) -> Page:
+        """Fetch `url`, retrying server errors, rate limiting and network
         failures with a growing pause. Other client errors fail at once."""
         for attempt in range(retries):
             response: httpx.Response | None = None
             try:
-                response = self.client.get(url)
-                response.raise_for_status()
-                return response
+                return self._download(url)
             except httpx.HTTPStatusError as exc:
-                if response is None or response.status_code not in RETRY_STATUSES:
+                response = exc.response
+                if response.status_code not in RETRY_STATUSES:
                     raise
                 error: httpx.HTTPError = exc
             except httpx.HTTPError as exc:
@@ -340,23 +394,36 @@ class Story:
         count = store.count
         url = store.last.next if store.last else self.config.url
         seen = store.urls()
+        started = _monotonic()
+        hit_limit = False
 
         while url and not self._limit_reached(count):
+            if self.max_chapters and count >= self.max_chapters:
+                self._stop(
+                    count, f"reached the limit of {self.max_chapters} chapters (MAX_CHAPTERS)"
+                )
+                hit_limit = True
+                break
+            if self.max_scrape_seconds and _monotonic() - started > self.max_scrape_seconds:
+                self._stop(
+                    count,
+                    f"the scrape ran over {self.max_scrape_seconds:g} seconds (MAX_SCRAPE_SECONDS)",
+                )
+                hit_limit = True
+                break
             if url in seen:
                 self._stop(count, f"{url} was already fetched, so the story links back on itself")
                 break
             seen.add(url)
             try:
-                response = self.fetch_response(url)
-                # Bytes, not .text, so a <meta charset> in the page is honoured
+                page = self.fetch_page(url)
+                # Bytes, not text, so a <meta charset> in the page is honoured
                 # when the server sends no charset (or the wrong one).
-                soup = BeautifulSoup(
-                    response.content, features="lxml", from_encoding=response.charset_encoding
-                )
+                soup = BeautifulSoup(page.content, features="lxml", from_encoding=page.charset)
                 # Before the chapter is taken out of the page, which can remove
                 # a link that sits inside it. Joined against where we actually
                 # ended up, in case of redirects.
-                next_url = self._next_url(soup, str(response.url))
+                next_url = self._next_url(soup, page.url)
                 content = self._chapter_content(soup)
             except (ChapterNotFoundError, httpx.HTTPStatusError) as exc:
                 if count == 0 or not _ends_story(exc):
@@ -378,7 +445,10 @@ class Story:
             yield count, url
             url = next_url
 
-        store.mark_done()
+        # A story cut short by a limit is not finished: raising the limit and
+        # retrying should carry on from here.
+        if not hit_limit:
+            store.mark_done()
 
     def scrape(self) -> None:
         """Fetch every remaining chapter, reporting each to `progress`."""
