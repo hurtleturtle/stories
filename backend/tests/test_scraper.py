@@ -260,3 +260,230 @@ def test_a_server_error_mid_story_still_fails():
     with _make_story_at(_story_url("chapter-1")) as story:
         with pytest.raises(httpx.HTTPStatusError):
             list(story.iter_chapters())
+
+
+# --- output ----------------------------------------------------------------
+
+
+def _download(page_html: str, **overrides) -> str:
+    respx.get(_story_url("chapter-1")).mock(return_value=httpx.Response(200, text=page_html))
+    with _make_story_at(_story_url("chapter-1"), **overrides) as story:
+        return story.download()
+
+
+@respx.mock
+def test_inline_markup_is_not_split_by_whitespace():
+    html = _download('<div class="chapter-content"><p>un<em>believ</em>able</p></div>')
+
+    assert "un<em>believ</em>able" in html
+
+
+@respx.mock
+def test_the_stylesheet_is_inlined_rather_than_linked_to_a_path_on_the_worker():
+    html = _download(_chapter(None))
+
+    assert "<link" not in html
+    assert '<style type="text/css">' in html
+    assert "font-family" in html  # from the bundled white-style.css
+
+
+@respx.mock
+def test_scripts_are_inlined_too():
+    html = _download(_chapter(None), scripts=["scroll_tracker.js"])
+
+    assert "<script>" in html
+    assert "src=" not in html
+    assert "window.onload" in html
+
+
+@respx.mock
+def test_inlined_css_and_js_are_not_html_escaped(monkeypatch):
+    source = "a > b { color: red } /* x && y < z */"
+    monkeypatch.setattr("story_scraper.scraper.read_asset", lambda kind, name: source)
+
+    html = _download(_chapter(None), scripts=["scroll_tracker.js"])
+
+    assert html.count(source) == 2  # once as the style, once as the script
+
+
+@respx.mock
+def test_the_document_declares_utf8():
+    html = _download(_chapter(None))
+
+    assert '<meta charset="utf-8"/>' in html
+
+
+@respx.mock
+def test_a_chapter_title_split_across_child_elements_is_still_read():
+    page = (
+        "<html><body><h3 class='t'><span>Chapter 7</span>: The Return</h3>"
+        '<div class="chapter-content"><p>x</p></div></body></html>'
+    )
+
+    with_title = _download(page, detect_title="h3.t")
+
+    assert "Chapter 7 - The Return" in with_title
+
+
+@respx.mock
+def test_write_saves_utf8(tmp_path):
+    respx.get(_story_url("chapter-1")).mock(
+        return_value=httpx.Response(
+            200, text='<div class="chapter-content"><p>第一章 — café</p></div>'
+        )
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        written = story.write(tmp_path)
+
+    assert "第一章 — café" in written.read_bytes().decode("utf-8")
+
+
+# --- decoding --------------------------------------------------------------
+
+
+GBK_PAGE = (
+    '<html><head><meta charset="gbk"></head><body>'
+    '<div class="chapter-content"><p>第一章</p></div></body></html>'
+).encode("gbk")
+
+
+@respx.mock
+def test_a_meta_charset_is_honoured_when_the_server_sends_none():
+    respx.get(_story_url("chapter-1")).mock(
+        return_value=httpx.Response(200, content=GBK_PAGE, headers={"content-type": "text/html"})
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        html = story.download()
+
+    assert "第一章" in html
+
+
+@respx.mock
+def test_the_charset_in_the_response_header_is_honoured():
+    page = '<div class="chapter-content"><p>café</p></div>'.encode("latin-1")
+    respx.get(_story_url("chapter-1")).mock(
+        return_value=httpx.Response(
+            200, content=page, headers={"content-type": "text/html; charset=iso-8859-1"}
+        )
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        html = story.download()
+
+    assert "café" in html
+
+
+# --- retries ---------------------------------------------------------------
+
+
+@respx.mock
+def test_a_403_is_not_retried(retry_sleeps):
+    route = respx.get(_story_url("chapter-1")).mock(return_value=httpx.Response(403))
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        with pytest.raises(httpx.HTTPStatusError):
+            story.fetch(_story_url("chapter-1"))
+
+    assert route.call_count == 1
+    assert retry_sleeps == []
+
+
+@respx.mock
+def test_a_server_error_is_retried_and_can_recover(retry_sleeps):
+    route = respx.get(_story_url("chapter-1")).mock(
+        side_effect=[httpx.Response(503), httpx.Response(200, text="ok")]
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        assert story.fetch(_story_url("chapter-1")) == "ok"
+
+    assert route.call_count == 2
+    assert retry_sleeps == [2.0]
+
+
+@respx.mock
+def test_the_pause_between_retries_grows_and_none_follows_the_last_attempt(retry_sleeps):
+    route = respx.get(_story_url("chapter-1")).mock(return_value=httpx.Response(500))
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        with pytest.raises(httpx.HTTPStatusError):
+            story.fetch(_story_url("chapter-1"), retries=4)
+
+    assert route.call_count == 4
+    assert retry_sleeps == [2.0, 4.0, 8.0]
+
+
+@respx.mock
+def test_retry_after_is_honoured_and_capped(retry_sleeps):
+    respx.get(_story_url("chapter-1")).mock(
+        side_effect=[
+            httpx.Response(429, headers={"Retry-After": "7"}),
+            httpx.Response(429, headers={"Retry-After": "3600"}),
+            httpx.Response(200, text="ok"),
+        ]
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        story.fetch(_story_url("chapter-1"))
+
+    assert retry_sleeps == [7.0, 60.0]
+
+
+@respx.mock
+def test_a_retry_after_date_falls_back_to_the_normal_pause(retry_sleeps):
+    respx.get(_story_url("chapter-1")).mock(
+        side_effect=[
+            httpx.Response(503, headers={"Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT"}),
+            httpx.Response(200, text="ok"),
+        ]
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        story.fetch(_story_url("chapter-1"))
+
+    assert retry_sleeps == [2.0]
+
+
+@respx.mock
+def test_network_errors_are_retried(retry_sleeps):
+    route = respx.get(_story_url("chapter-1")).mock(
+        side_effect=[httpx.ConnectError("boom"), httpx.Response(200, text="ok")]
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        assert story.fetch(_story_url("chapter-1")) == "ok"
+
+    assert route.call_count == 2
+
+
+# --- loops -----------------------------------------------------------------
+
+
+@respx.mock
+def test_a_chapter_linking_to_itself_ends_the_story():
+    route = respx.get(_story_url("chapter-1")).mock(
+        return_value=httpx.Response(200, text=_chapter("chapter-1"))
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        chapters = list(story.iter_chapters())
+
+    assert len(chapters) == 1
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_a_cycle_between_chapters_ends_the_story():
+    respx.get(_story_url("chapter-1")).mock(
+        return_value=httpx.Response(200, text=_chapter("chapter-2"))
+    )
+    respx.get(_story_url("chapter-2")).mock(
+        return_value=httpx.Response(200, text=_chapter("chapter-1#top"))
+    )
+
+    with _make_story_at(_story_url("chapter-1")) as story:
+        chapters = list(story.iter_chapters())
+
+    assert [url for _, url in chapters] == [_story_url("chapter-1"), _story_url("chapter-2")]

@@ -16,7 +16,7 @@ from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
 from app.services.email import missing_smtp_fields, pick_sendable_artifact, smtp_config
 from app.services.storage import job_dir
 from app.worker.celery_app import celery_app
-from story_scraper.config import StoryConfig
+from story_scraper.config import StoryConfig, settings
 from story_scraper.converter import convert
 from story_scraper.mailer import send_ebook
 from story_scraper.scraper import Story
@@ -87,10 +87,13 @@ def _run_claimed_job(session, job_id: str) -> None:
         with Story(config, progress=progress) as story:
             html_file = story.write(output_dir)
 
+        # Committed now: if conversion fails, the scraped book is still worth
+        # having, and the failure handler below rolls back to this point.
         _record_artifact(session, job, "html", html_file)
+        session.commit()
 
         ebook_file = output_dir / f"{config.resolved_filename()}.{config.ebook_type}"
-        convert(html_file, ebook_file, config.title)
+        convert(html_file, ebook_file, config.title, timeout=settings.conversion_timeout_seconds)
         _record_artifact(session, job, config.ebook_type, ebook_file)
 
         if job.config.get("send_email"):

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from collections.abc import Callable, Iterator
 from importlib import resources
 from pathlib import Path
@@ -12,7 +13,7 @@ from urllib.parse import urldefrag, urljoin, urlparse
 import httpx
 from bs4 import BeautifulSoup, NavigableString, Tag
 
-from story_scraper.config import StoryConfig
+from story_scraper.config import StoryConfig, read_asset
 from story_scraper.urlsafety import assert_public_url
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,30 @@ CHAPTER_TITLE_RE = re.compile(
 )
 
 ProgressCallback = Callable[[int, str], None]
+
+# Worth trying again: the server is struggling or asked us to slow down. Other
+# 4xx responses (403, 401, ...) will not change on a retry.
+RETRY_STATUSES = frozenset({408, 425, 429}) | frozenset(range(500, 600))
+RETRY_BACKOFF_SECONDS = 2.0
+MAX_RETRY_WAIT_SECONDS = 60.0
+
+
+def _sleep(seconds: float) -> None:
+    """Indirection so tests can skip the waiting."""
+    time.sleep(seconds)
+
+
+def _retry_delay(attempt: int, response: httpx.Response | None) -> float:
+    """Seconds to wait after failed attempt number `attempt` (0-based):
+    exponential, unless the server said how long via Retry-After."""
+    if response is not None:
+        try:
+            requested = float(response.headers.get("Retry-After", ""))
+        except ValueError:
+            pass  # absent, or an HTTP-date, which is not worth parsing here
+        else:
+            return min(max(requested, 0.0), MAX_RETRY_WAIT_SECONDS)
+    return min(RETRY_BACKOFF_SECONDS * 2**attempt, MAX_RETRY_WAIT_SECONDS)
 
 
 class ChapterNotFoundError(RuntimeError):
@@ -77,34 +102,39 @@ class Story:
 
     @staticmethod
     def _load_template() -> BeautifulSoup:
-        html = resources.files("story_scraper.assets").joinpath("template.html").read_text()
+        template = resources.files("story_scraper.assets") / "template.html"
+        html = template.read_text(encoding="utf-8")
         return BeautifulSoup(html, features="lxml")
 
     def fetch(self, url: str, retries: int = 3) -> str:
         return self.fetch_response(url, retries).text
 
     def fetch_response(self, url: str, retries: int = 3) -> httpx.Response:
-        last_error: Exception | None = None
+        """GET `url`, retrying server errors, rate limiting and network
+        failures with a growing pause. Other client errors fail at once."""
         for attempt in range(retries):
+            response: httpx.Response | None = None
             try:
                 response = self.client.get(url)
                 response.raise_for_status()
                 return response
             except httpx.HTTPStatusError as exc:
-                last_error = exc
-                if exc.response.status_code in (404, 410):
+                if response is None or response.status_code not in RETRY_STATUSES:
                     raise
-                logger.warning(
-                    "Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc
-                )
+                error: httpx.HTTPError = exc
             except httpx.HTTPError as exc:
-                last_error = exc
-                logger.warning(
-                    "Request to %s failed (attempt %d/%d): %s", url, attempt + 1, retries, exc
-                )
+                error = exc
 
-        assert last_error is not None
-        raise last_error
+            if attempt + 1 == retries:
+                raise error
+            delay = _retry_delay(attempt, response)
+            logger.warning(
+                "Request to %s failed (attempt %d/%d): %s; retrying in %.0fs",
+                url, attempt + 1, retries, error, delay,
+            )
+            _sleep(delay)
+
+        raise AssertionError("retries must be at least 1")  # pragma: no cover
 
     def _chapter_title(self, soup: BeautifulSoup) -> Tag:
         heading = soup.new_tag("h2")
@@ -114,8 +144,11 @@ class Story:
 
         if self.config.detect_title:
             tag = soup.select_one(self.config.detect_title)
-            if tag is not None and tag.string:
-                match = CHAPTER_TITLE_RE.match(tag.string)
+            # get_text rather than .string, which is None for a tag holding
+            # any child markup (<h3><span>Chapter 7</span>: The Return</h3>).
+            text = " ".join(tag.get_text(" ").split()) if tag is not None else ""
+            if text:
+                match = CHAPTER_TITLE_RE.match(text)
                 if match:
                     chapter_number = match.group(3)
                     title = match.group(4) or ""
@@ -172,11 +205,20 @@ class Story:
         """
         url: str | None = self.config.url
         count = 0
+        seen: set[str] = set()
 
         while url:
+            if url in seen:
+                logger.warning("Stopping after %d chapters: %s links back to itself", count, url)
+                return
+            seen.add(url)
             try:
                 response = self.fetch_response(url)
-                soup = BeautifulSoup(response.text, features="lxml")
+                # Bytes, not .text, so a <meta charset> in the page is honoured
+                # when the server sends no charset (or the wrong one).
+                soup = BeautifulSoup(
+                    response.content, features="lxml", from_encoding=response.charset_encoding
+                )
                 self._append_chapter(soup)
             except (ChapterNotFoundError, httpx.HTTPStatusError) as exc:
                 if count == 0 or not _ends_story(exc):
@@ -191,23 +233,23 @@ class Story:
             # Join against where we actually ended up, in case of redirects.
             url = self._next_url(soup, str(response.url))
 
-    def _apply_style(self) -> None:
-        style_path = resources.files("story_scraper.assets") / "styles" / self.config.style
-        link = self.doc.new_tag("link")
-        link["rel"] = "stylesheet"
-        link["type"] = "text/css"
-        link["href"] = str(style_path)
+    def _inline_asset(self, tag_name: str, source: str) -> None:
+        """Put an asset's content in the page itself. A link to a file on the
+        worker would be dead as soon as the HTML left it."""
+        tag = self.doc.new_tag(tag_name)
+        if tag_name == "style":
+            tag["type"] = "text/css"
+        tag.string = source
         assert self.doc.head is not None
-        self.doc.head.append(link)
+        self.doc.head.append(tag)
+
+    def _apply_style(self) -> None:
+        css = read_asset("styles", self.config.style)
+        self._inline_asset("style", css)
 
     def _apply_scripts(self) -> None:
-        assets_scripts = resources.files("story_scraper.assets") / "scripts"
         for script in self.config.scripts:
-            script_path = assets_scripts / script if "/" not in script else Path(script)
-            tag = self.doc.new_tag("script")
-            tag["src"] = str(script_path)
-            assert self.doc.head is not None
-            self.doc.head.append(tag)
+            self._inline_asset("script", read_asset("scripts", script))
 
     def download(self) -> str:
         """Scrape all configured chapters and return the assembled HTML."""
@@ -217,10 +259,12 @@ class Story:
         for count, url in self.iter_chapters():
             self.progress(count, url)
 
-        return self.doc.prettify()
+        # Not prettify(): it puts whitespace around inline tags, which
+        # readers then show inside words (un<em>believ</em>able).
+        return str(self.doc)
 
     def write(self, output_dir: Path) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         html_file = output_dir / f"{self.config.resolved_filename()}.html"
-        html_file.write_text(self.download())
+        html_file.write_text(self.download(), encoding="utf-8")
         return html_file

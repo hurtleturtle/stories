@@ -74,7 +74,7 @@ def fake_pipeline(monkeypatch, tmp_path):
             html.write_text("<html></html>")
             return html
 
-    def fake_convert(html_file, ebook_file, title):
+    def fake_convert(html_file, ebook_file, title, timeout=None):
         ran.append("convert")
         ebook_file.write_text("ebook")
         return ebook_file
@@ -312,3 +312,154 @@ async def test_a_scrape_failure_is_recorded_on_the_job(auth_client, monkeypatch,
     assert job.status.value == "failed"
     assert "site is down" in job.error
     assert job.finished_at is not None
+
+
+async def test_a_conversion_failure_keeps_the_scraped_html(auth_client, monkeypatch, fake_pipeline):
+    """Calibre failing should not throw away a book that was fully scraped."""
+    from app.worker.tasks import run_story_job
+    from story_scraper.converter import ConversionError
+
+    def failing_convert(html_file, ebook_file, title, timeout=None):
+        raise ConversionError("calibre exploded")
+
+    monkeypatch.setattr("app.worker.tasks.convert", failing_convert)
+    body = await create_job(auth_client)
+
+    run_story_job(body["id"])
+
+    job = load_job(body["id"])
+    assert job.status.value == "failed"
+    assert "calibre exploded" in job.error
+    assert [a.kind for a in job.artifacts] == ["html"]
+
+
+async def test_the_worker_bounds_how_long_conversion_can_take(
+    auth_client, monkeypatch, fake_pipeline
+):
+    from app.worker.tasks import run_story_job
+    from story_scraper.config import settings
+
+    timeouts: list[float] = []
+
+    def recording_convert(html_file, ebook_file, title, timeout=None):
+        timeouts.append(timeout)
+        ebook_file.write_text("ebook")
+        return ebook_file
+
+    monkeypatch.setattr("app.worker.tasks.convert", recording_convert)
+    body = await create_job(auth_client)
+
+    run_story_job(body["id"])
+
+    assert timeouts == [settings.conversion_timeout_seconds]
+
+
+def test_the_broker_waits_longer_than_an_hour_before_redelivering_a_task():
+    """Redis' default of one hour is shorter than a big scrape, and with
+    acks_late the task stays unacknowledged until it finishes."""
+    from app.worker.celery_app import celery_app
+    from story_scraper.config import settings
+
+    timeout = celery_app.conf.broker_transport_options["visibility_timeout"]
+    assert timeout == settings.broker_visibility_timeout_seconds
+    assert timeout > 60 * 60
+
+
+# --- style, scripts and ebook type from the request --------------------------
+
+
+@pytest.mark.parametrize("style", ["../../etc/passwd", "/etc/passwd", "nope.css", ""])
+async def test_a_job_cannot_name_a_stylesheet_outside_the_bundled_ones(
+    auth_client, queued_tasks, style
+):
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "style": style}
+    )
+
+    assert resp.status_code == 422
+    assert queued_tasks == []
+
+
+@pytest.mark.parametrize("script", ["/etc/passwd", "../x.js", "scripts/scroll_tracker.js", "x.js"])
+async def test_a_job_cannot_name_a_script_outside_the_bundled_ones(
+    auth_client, queued_tasks, script
+):
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "scripts": [script]}
+    )
+
+    assert resp.status_code == 422
+    assert queued_tasks == []
+
+
+async def test_a_job_can_use_the_bundled_style_and_script(auth_client):
+    resp = await auth_client.post(
+        "/api/jobs",
+        json={
+            "url": "https://example.com/1",
+            "style": "black-style.css",
+            "scripts": ["scroll_tracker.js"],
+        },
+    )
+
+    assert resp.status_code == 201, resp.text
+
+
+async def test_templates_cannot_name_files_outside_the_bundled_assets(auth_client):
+    base = {"name": "t", "container": "div", "next_selector": "a"}
+
+    bad_style = await auth_client.post("/api/templates", json={**base, "style": "../../x.css"})
+    bad_script = await auth_client.post("/api/templates", json={**base, "scripts": ["/etc/passwd"]})
+    bad_type = await auth_client.post("/api/templates", json={**base, "ebook_type": "../x"})
+    ok = await auth_client.post(
+        "/api/templates", json={**base, "style": "black-style.css", "ebook_type": "MOBI"}
+    )
+
+    assert (bad_style.status_code, bad_script.status_code, bad_type.status_code) == (422, 422, 422)
+    assert ok.status_code == 201
+    assert ok.json()["ebook_type"] == "mobi"
+
+    template_id = ok.json()["id"]
+    update = await auth_client.put(f"/api/templates/{template_id}", json={"style": "../../x.css"})
+    assert update.status_code == 422
+
+
+# --- downloading -----------------------------------------------------------
+
+
+async def _job_with_artifact_at(auth_client, path) -> tuple[str, str]:
+    from app.db import AsyncSessionLocal
+    from app.models import Artifact
+
+    body = await create_job(auth_client)
+    artifact = Artifact(
+        job_id=uuid.UUID(body["id"]),
+        kind="epub",
+        filename="Book.epub",
+        path=str(path),
+        size_bytes=5,
+        content_type="application/epub+zip",
+    )
+    async with AsyncSessionLocal() as db:
+        db.add(artifact)
+        await db.commit()
+    return body["id"], str(artifact.id)
+
+
+async def test_downloading_an_artifact_returns_the_file(auth_client, tmp_path):
+    book = tmp_path / "Book.epub"
+    book.write_bytes(b"ebook")
+    job_id, artifact_id = await _job_with_artifact_at(auth_client, book)
+
+    resp = await auth_client.get(f"/api/jobs/{job_id}/artifacts/{artifact_id}")
+
+    assert resp.status_code == 200
+    assert resp.content == b"ebook"
+
+
+async def test_downloading_an_artifact_whose_file_is_gone_is_a_404(auth_client, tmp_path):
+    job_id, artifact_id = await _job_with_artifact_at(auth_client, tmp_path / "missing.epub")
+
+    resp = await auth_client.get(f"/api/jobs/{job_id}/artifacts/{artifact_id}")
+
+    assert resp.status_code == 404

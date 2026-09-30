@@ -54,8 +54,8 @@ A template is a set of CSS selectors for one site:
 - `container` *mandatory* - selector for the `<p>` tags containing chapter text
 - `next_selector` *mandatory* - selector for the next-chapter link
 - `detect_title` *optional* - selector for the chapter title
-- `style` *optional* - stylesheet filename bundled in `story_scraper/assets/styles`
-- `scripts` *optional* - script filenames to add to the generated HTML's `<head>`
+- `style` *optional* - stylesheet filename bundled in `story_scraper/assets/styles` (other names are rejected); it is inlined into the generated HTML
+- `scripts` *optional* - script filenames bundled in `story_scraper/assets/scripts` (other names are rejected), inlined into the generated HTML's `<head>`
 - `ebook_type` *optional* - `epub` (default) or `mobi`
 
 `backend/templates/*.yml` ships the original site templates (Royal Road,

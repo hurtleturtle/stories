@@ -5,7 +5,7 @@ import pytest
 import respx
 from pydantic import ValidationError
 
-from story_scraper.config import StoryConfig, safe_filename
+from story_scraper.config import StoryConfig, asset_names, read_asset, safe_filename
 
 
 @pytest.mark.parametrize(
@@ -78,3 +78,47 @@ def test_write_keeps_the_file_inside_the_output_directory(tmp_path, title):
     assert written.parent == output_dir
     assert written.read_text().count('class="chp"') == 1
     assert [p.name for p in tmp_path.iterdir()] == ["job"]
+
+
+# --- bundled assets --------------------------------------------------------
+
+
+def test_the_bundled_assets_are_listed():
+    assert "white-style.css" in asset_names("styles")
+    assert asset_names("scripts") == ["scroll_tracker.js"]
+
+
+@pytest.mark.parametrize(
+    ("kind", "name"),
+    [
+        ("styles", "../styles/white-style.css"),
+        ("styles", "/etc/passwd"),
+        ("styles", "styles/white-style.css"),
+        ("styles", "missing.css"),
+        ("scripts", "../../scraper.py"),
+        ("scripts", "white-style.css"),
+    ],
+)
+def test_read_asset_only_reads_bundled_files_by_name(kind, name):
+    with pytest.raises(ValueError, match="Unknown"):
+        read_asset(kind, name)
+
+
+@pytest.mark.parametrize("style", ["../../etc/passwd", "/etc/passwd", "missing.css", ""])
+def test_style_must_be_a_bundled_stylesheet(style):
+    with pytest.raises(ValidationError, match="available"):
+        StoryConfig(url="https://example.com/1", style=style)
+
+
+@pytest.mark.parametrize("script", ["/etc/passwd", "../x.js", "scripts/scroll_tracker.js"])
+def test_scripts_must_be_bundled_scripts(script):
+    with pytest.raises(ValidationError):
+        StoryConfig(url="https://example.com/1", scripts=[script])
+
+
+def test_bundled_style_and_script_are_accepted():
+    config = StoryConfig(
+        url="https://example.com/1", style="black-style.css", scripts=["scroll_tracker.js"]
+    )
+
+    assert config.style == "black-style.css"

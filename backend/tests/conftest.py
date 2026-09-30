@@ -46,6 +46,14 @@ def stub_dns(monkeypatch):
     monkeypatch.setattr("story_scraper.urlsafety.resolve_host", fake_resolve_host)
 
 
+@pytest.fixture(autouse=True)
+def retry_sleeps(monkeypatch) -> list[float]:
+    """Skip the scraper's retry pauses, recording how long each would have been."""
+    pauses: list[float] = []
+    monkeypatch.setattr("story_scraper.scraper._sleep", pauses.append)
+    return pauses
+
+
 @pytest.fixture
 async def db_engine():
     """A schema created fresh for each test. Skips when no DB is configured,

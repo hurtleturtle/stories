@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -179,6 +180,9 @@ async def download_artifact(
     artifact = next((a for a in job.artifacts if a.id == artifact_id), None)
     if artifact is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact not found")
+
+    if not Path(artifact.path).is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Artifact file is no longer available")
 
     return FileResponse(
         artifact.path, media_type=artifact.content_type, filename=artifact.filename

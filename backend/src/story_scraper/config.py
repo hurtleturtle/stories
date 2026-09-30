@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from importlib import resources
 from typing import Annotated
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, Field, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Used as a file extension and passed to Calibre, so it must not be able to
@@ -13,6 +14,37 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 EbookType = Annotated[
     str, StringConstraints(strip_whitespace=True, to_lower=True, pattern=r"^[A-Za-z0-9]{1,10}$")
 ]
+
+
+
+def asset_names(kind: str) -> list[str]:
+    """Names of the bundled files of one kind ("styles" or "scripts")."""
+    folder = resources.files("story_scraper.assets") / kind
+    return sorted(entry.name for entry in folder.iterdir() if entry.is_file())
+
+
+def read_asset(kind: str, name: str) -> str:
+    """Contents of a bundled asset. Only bundled names are accepted, so a
+    user-supplied value cannot select any other file on the machine."""
+    if name not in asset_names(kind):
+        raise ValueError(f"Unknown {kind.rstrip('s')} {name!r}")
+    return (resources.files("story_scraper.assets") / kind / name).read_text(encoding="utf-8")
+
+
+def _bundled(kind: str):
+    def check(name: str) -> str:
+        available = asset_names(kind)
+        if name not in available:
+            raise ValueError(
+                f"Unknown {kind.rstrip('s')} {name!r}; available: {', '.join(available)}"
+            )
+        return name
+
+    return AfterValidator(check)
+
+
+StyleName = Annotated[str, _bundled("styles")]
+ScriptName = Annotated[str, _bundled("scripts")]
 
 _UNSAFE_FILENAME_CHARS = re.compile(r'[\x00-\x1f\x7f/\\:*?"<>|]')
 _MAX_FILENAME_BYTES = 200  # leaves room for an extension under the usual 255 limit
@@ -41,8 +73,8 @@ class StoryConfig(BaseModel):
     container: str = "div.chapter-content"
     next_selector: str = "a#next_chap"
     detect_title: str | None = None
-    style: str = "white-style.css"
-    scripts: list[str] = Field(default_factory=list)
+    style: StyleName = "white-style.css"
+    scripts: list[ScriptName] = Field(default_factory=list)
     ebook_type: EbookType = "epub"
     num_chapters: int | None = None
     verbosity: int = 0
@@ -63,6 +95,12 @@ class Settings(BaseSettings):
     secret_key: str = "change-me"
     allow_registration: bool = True
     access_token_expire_minutes: int = 60 * 24
+
+    # ebook-convert has been seen to hang; without a limit it holds a worker forever.
+    conversion_timeout_seconds: int = 30 * 60
+    # How long the broker waits for a task to finish before handing it to
+    # another worker. Must exceed the longest scrape, or a long job runs twice.
+    broker_visibility_timeout_seconds: int = 12 * 60 * 60
 
     email_from: str | None = None
     email_to: str | None = None
