@@ -28,9 +28,19 @@ logger = logging.getLogger(__name__)
 USER_AGENT = (
     "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:126.0) Gecko/20100101 Firefox/126.0"
 )
-CHAPTER_TITLE_RE = re.compile(
-    r"((chapter)?[:\s]*(\d+))?[:\-.\s]*(.*)", flags=re.IGNORECASE
+# How a scraped chapter heading is read. Numbers may be decimals ("Chapter 5.5",
+# an interlude). Separators between the number and the title are any of : - . )
+_NUMBER = r"\d+(?:\.\d+)?"
+_SEPARATORS = r"[:\-\u2013\u2014.)]"
+# "Chapter 12: Title", "Ch. 12 - Title", "chapter 12 Title" - the word says it is a chapter.
+PREFIXED_HEADING_RE = re.compile(
+    rf"^(?:chapter|ch\.?)\s*({_NUMBER})\b\s*{_SEPARATORS}*\s*(.*)$", flags=re.IGNORECASE
 )
+# "12: Title", "12. Title", "12 - Title" or just "12". A bare number counts only when
+# a separator (or the end) follows it: "1984 Revisited" is a title, not chapter 1984.
+BARE_HEADING_RE = re.compile(rf"^({_NUMBER})\s*(?:{_SEPARATORS}+\s*|$)(.*)$")
+# "Chapter One", "Chapter IV: The End": already a heading, with a number in words.
+WORDED_HEADING_RE = re.compile(r"^(?:chapter|ch\.?)\b", flags=re.IGNORECASE)
 
 ProgressCallback = Callable[[int, str], None]
 
@@ -180,11 +190,28 @@ class Story:
 
         raise AssertionError("retries must be at least 1")  # pragma: no cover
 
+    @staticmethod
+    def _parse_heading(text: str) -> tuple[str | None, str, str | None]:
+        """Read a detected chapter heading: (number, title, verbatim).
+
+        `number` is a chapter number found in the text, `title` what follows it,
+        and `verbatim` the whole text when it is a heading in its own right that
+        this cannot pick a number out of ("Chapter One"). At most one of `number`
+        and `verbatim` is set; with neither, the text is just a title."""
+        for pattern in (PREFIXED_HEADING_RE, BARE_HEADING_RE):
+            match = pattern.match(text)
+            if match:
+                return match.group(1), match.group(2).strip(), None
+        if WORDED_HEADING_RE.match(text):
+            return None, "", text
+        return None, text, None
+
     def _chapter_title(self, soup: BeautifulSoup) -> Tag:
         heading = soup.new_tag("h2")
         heading["class"] = "chapter-heading"
+        number: str | None = None
         title = ""
-        chapter_number: str | None = None
+        verbatim: str | None = None
 
         if self.config.detect_title:
             tag = soup.select_one(self.config.detect_title)
@@ -192,16 +219,18 @@ class Story:
             # any child markup (<h3><span>Chapter 7</span>: The Return</h3>).
             text = " ".join(tag.get_text(" ").split()) if tag is not None else ""
             if text:
-                match = CHAPTER_TITLE_RE.match(text)
-                if match:
-                    chapter_number = match.group(3)
-                    title = match.group(4) or ""
+                number, title, verbatim = self._parse_heading(text)
 
-        self.current_chapter = chapter_number or int(self.current_chapter) + 1
-        text = f"Chapter {self.current_chapter}"
-        if title:
-            text += f" - {title}"
-        heading.string = NavigableString(text)
+        # Untitled chapters continue from the last one. Int-of-float so that an
+        # interlude numbered 5.5 is followed by 6.
+        self.current_chapter = number or int(float(self.current_chapter)) + 1
+        if verbatim:
+            heading.string = NavigableString(verbatim)
+        else:
+            text = f"Chapter {self.current_chapter}"
+            if title:
+                text += f" - {title}"
+            heading.string = NavigableString(text)
         return heading
 
     def _chapter_content(self, soup: BeautifulSoup) -> list[Tag]:
