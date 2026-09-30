@@ -374,7 +374,7 @@ async def test_retrying_after_a_failed_conversion_does_not_duplicate_artifacts(
 
     working_convert = tasks.convert
 
-    def failing_convert(html_file, ebook_file, title, timeout=None):
+    def failing_convert(html_file, ebook_file, title, timeout=None, **metadata):
         raise ConversionError("calibre exploded")
 
     monkeypatch.setattr(tasks, "convert", failing_convert)

@@ -91,6 +91,11 @@ however long the story is and nothing is lost if the worker dies.
 - **Limits.** One scrape is capped at `MAX_CHAPTERS` chapters and `MAX_SCRAPE_SECONDS`, and a
   page at `MAX_PAGE_BYTES` (decompressed). Reaching the first two ends the story with a note
   in the job log, and raising the limit and retrying carries on. `0` turns a limit off.
+- **Conversion.** Calibre is given the chapter headings as the table of contents (it used to
+  guess), plus an optional `author` and `language` from the new-job form or the CLI's
+  `--author` / `--language`. The table of contents relies on Calibre accepting the
+  expression `//h:h2[@class='chapter-heading']`; that is untested here, since Calibre is not
+  installed in the test environment.
 - **The job log** is written in batches (every 25 chapters or 3 seconds) rather than once per
   chapter, so a long story does not rewrite an ever-growing log thousands of times.
 - **Lost workers are noticed.** A running job's worker records a heartbeat, and the API

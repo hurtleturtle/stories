@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models import EmailStatus, JobStatus, UserRole
-from story_scraper.config import EbookType, ScriptName, StyleName
+from story_scraper.config import AuthorName, EbookType, LanguageCode, ScriptName, StyleName
 
 
 class UserCreate(BaseModel):
@@ -137,6 +137,8 @@ class JobCreate(BaseModel):
     style: StyleName | None = None
     scripts: list[ScriptName] | None = None
     ebook_type: EbookType | None = None
+    author: AuthorName | None = None
+    language: LanguageCode | None = None
     num_chapters: int | None = None
     send_email: bool = False
 

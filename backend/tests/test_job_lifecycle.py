@@ -332,7 +332,7 @@ async def test_a_conversion_failure_keeps_the_scraped_html(auth_client, monkeypa
     from app.worker.tasks import run_story_job
     from story_scraper.converter import ConversionError
 
-    def failing_convert(html_file, ebook_file, title, timeout=None):
+    def failing_convert(html_file, ebook_file, title, timeout=None, **metadata):
         raise ConversionError("calibre exploded")
 
     monkeypatch.setattr("app.worker.tasks.convert", failing_convert)
@@ -354,7 +354,7 @@ async def test_the_worker_bounds_how_long_conversion_can_take(
 
     timeouts: list[float] = []
 
-    def recording_convert(html_file, ebook_file, title, timeout=None):
+    def recording_convert(html_file, ebook_file, title, timeout=None, **metadata):
         timeouts.append(timeout)
         ebook_file.write_text("ebook")
         return ebook_file
@@ -609,3 +609,55 @@ async def test_overriding_a_stale_template_value_in_the_request_fixes_the_job(au
     )
 
     assert resp.status_code == 201, resp.text
+
+
+# --- author and language ---------------------------------------------------------------
+
+
+async def test_an_author_and_language_are_kept_on_the_job(auth_client):
+    resp = await auth_client.post(
+        "/api/jobs",
+        json={"url": "https://example.com/1", "author": "Jane Doe", "language": "en-GB"},
+    )
+
+    assert resp.status_code == 201, resp.text
+    config = load_job(resp.json()["id"]).config
+    assert (config["author"], config["language"]) == ("Jane Doe", "en-GB")
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("author", ""), ("author", "two\nlines"), ("language", "english!"), ("language", "--x")],
+)
+async def test_a_bad_author_or_language_is_refused(auth_client, queued_tasks, field, value):
+    resp = await auth_client.post("/api/jobs", json={"url": "https://example.com/1", field: value})
+
+    assert resp.status_code == 422
+    assert queued_tasks == []
+
+
+async def test_the_worker_hands_the_author_and_language_to_the_converter(
+    auth_client, fake_pipeline, monkeypatch
+):
+    from app.worker.tasks import run_story_job
+
+    received: list[dict] = []
+
+    def recording_convert(html_file, ebook_file, title, timeout=None, **metadata):
+        received.append(metadata)
+        ebook_file.write_text("ebook")
+        return ebook_file
+
+    monkeypatch.setattr("app.worker.tasks.convert", recording_convert)
+    with_metadata = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/1", "author": "Jane", "language": "fr"}
+    )
+    without = await create_job(auth_client)
+
+    run_story_job(with_metadata.json()["id"])
+    run_story_job(without["id"])
+
+    assert received == [
+        {"authors": "Jane", "language": "fr"},
+        {"authors": None, "language": None},
+    ]

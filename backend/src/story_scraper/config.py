@@ -57,6 +57,21 @@ def _bundled(kind: str):
     return AfterValidator(check)
 
 
+# Passed to Calibre as command-line values, so kept to something plain.
+AuthorName = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=200, pattern=r"^[^\x00-\x1f\x7f]+$"
+    ),
+]
+# A language code such as en, eng, en-GB or zh-Hans.
+LanguageCode = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, max_length=35, pattern=r"^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$"
+    ),
+]
+
 StyleName = Annotated[str, _bundled("styles")]
 ScriptName = Annotated[str, _bundled("scripts")]
 
@@ -90,6 +105,8 @@ class StoryConfig(BaseModel):
     style: StyleName = "white-style.css"
     scripts: list[ScriptName] = Field(default_factory=list)
     ebook_type: EbookType = "epub"
+    author: AuthorName | None = None
+    language: LanguageCode | None = None
     num_chapters: int | None = None
     verbosity: int = 0
 

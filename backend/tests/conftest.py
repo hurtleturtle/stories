@@ -216,7 +216,7 @@ def fake_pipeline(monkeypatch, tmp_path):
             html.write_text("<html></html>")
             return html
 
-    def fake_convert(html_file, ebook_file, title, timeout=None):
+    def fake_convert(html_file, ebook_file, title, timeout=None, **metadata):
         ran.append("convert")
         ebook_file.write_text("ebook")
         return ebook_file

@@ -150,3 +150,37 @@ def test_the_supported_types_are_what_kindle_will_take():
     from app.services.email import SENDABLE_KINDS
 
     assert SENDABLE_KINDS == EBOOK_TYPES
+
+
+# --- author and language -------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "author", ["Jane Doe", "Jane Doe & John Roe", "Ünï Çode \u8f6c\u751f", "J. R. R."]
+)
+def test_an_author_is_accepted(author):
+    assert StoryConfig(url="https://example.com/1", author=author).author == author
+
+
+def test_an_author_is_trimmed_and_optional():
+    assert StoryConfig(url="https://example.com/1", author="  Jane  ").author == "Jane"
+    assert StoryConfig(url="https://example.com/1").author is None
+
+
+@pytest.mark.parametrize("author", ["", "   ", "two\nlines", "tab\there", "nul\x00", "x" * 201])
+def test_an_unusable_author_is_rejected(author):
+    with pytest.raises(ValidationError):
+        StoryConfig(url="https://example.com/1", author=author)
+
+
+@pytest.mark.parametrize("language", ["en", "eng", "en-GB", "zh-Hans", "pt-BR", " fr "])
+def test_a_language_code_is_accepted(language):
+    assert StoryConfig(url="https://example.com/1", language=language).language == language.strip()
+
+
+@pytest.mark.parametrize(
+    "language", ["", "e", "english!", "en_GB", "--x", "en gb", "1n", "x" * 40, "e\nn"]
+)
+def test_a_malformed_language_is_rejected(language):
+    with pytest.raises(ValidationError):
+        StoryConfig(url="https://example.com/1", language=language)

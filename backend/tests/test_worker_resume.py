@@ -25,7 +25,7 @@ def scraper(monkeypatch, tmp_path):
     `.converted` holds the HTML each conversion was given."""
     converted: list[str] = []
 
-    def fake_convert(html_file, ebook_file, title, timeout=None):
+    def fake_convert(html_file, ebook_file, title, timeout=None, **metadata):
         converted.append(html_file.read_text(encoding="utf-8"))
         ebook_file.write_text("ebook")
         return ebook_file
@@ -135,7 +135,7 @@ async def test_a_job_that_failed_in_conversion_is_not_scraped_again(
     routes = mount(c1=page("<p>One.</p>", "c2"), c2=page("<p>Two.</p>"))
     working_convert = tasks.convert
 
-    def failing_convert(html_file, ebook_file, title, timeout=None):
+    def failing_convert(html_file, ebook_file, title, timeout=None, **metadata):
         raise ConversionError("calibre exploded")
 
     monkeypatch.setattr(tasks, "convert", failing_convert)

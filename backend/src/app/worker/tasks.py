@@ -256,7 +256,14 @@ def _run_claimed_job(session, job_id: str, task_id: str | None = None) -> None:
         session.commit()
 
         ebook_file = output_dir / f"{config.resolved_filename()}.{config.ebook_type}"
-        convert(html_file, ebook_file, config.title, timeout=settings.conversion_timeout_seconds)
+        convert(
+            html_file,
+            ebook_file,
+            config.title,
+            timeout=settings.conversion_timeout_seconds,
+            authors=config.author,
+            language=config.language,
+        )
         _record_artifact(session, job, config.ebook_type, ebook_file)
 
         if job.config.get("send_email"):

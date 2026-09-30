@@ -90,7 +90,7 @@ async def test_the_worker_records_relative_paths_that_download_and_survive_a_mov
 ):
     from app.worker.tasks import run_story_job
 
-    def fake_convert(html_file, ebook_file, title, timeout=None):
+    def fake_convert(html_file, ebook_file, title, timeout=None, **metadata):
         ebook_file.write_text("ebook bytes")
         return ebook_file
 

@@ -70,6 +70,8 @@ export interface JobCreateInput {
   style?: string;
   scripts?: string[];
   ebook_type?: string;
+  author?: string;
+  language?: string;
   num_chapters?: number;
   send_email?: boolean;
 }
