@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { LuPlay } from "react-icons/lu";
 import { useNavigate } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
 import { createJob, getSettings, listTemplates } from "../api/endpoints";
@@ -99,6 +100,7 @@ export default function NewJob() {
         )}
         {error && <span className="error">{error}</span>}
         <button className="primary" type="submit" disabled={mutation.isPending}>
+          <LuPlay />
           {mutation.isPending ? "Starting..." : "Start job"}
         </button>
       </form>

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LuCircleX, LuRotateCcw, LuSend } from "react-icons/lu";
 import { useParams } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
 import {
@@ -109,6 +110,7 @@ export default function JobDetail() {
               onClick={() => emailMutation.mutate(undefined)}
               disabled={emailMutation.isPending}
             >
+              <LuSend />
               {emailMutation.isPending || queued ? "Sending..." : sendLabel}
             </button>
           </div>
@@ -155,6 +157,7 @@ export default function JobDetail() {
                           onClick={() => emailMutation.mutate(artifact.id)}
                           disabled={emailMutation.isPending}
                         >
+                          <LuSend />
                           Send this
                         </button>
                       )}
@@ -170,11 +173,13 @@ export default function JobDetail() {
       <div style={{ display: "flex", gap: "0.5rem" }}>
         {job.status === "pending" && (
           <button className="secondary" onClick={() => cancelMutation.mutate()}>
+            <LuCircleX />
             Cancel
           </button>
         )}
         {(job.status === "failed" || job.status === "cancelled") && (
           <button className="secondary" onClick={() => retryMutation.mutate()}>
+            <LuRotateCcw />
             Retry
           </button>
         )}

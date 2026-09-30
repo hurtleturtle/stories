@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { LuSave } from "react-icons/lu";
 import { useNavigate, useParams } from "react-router-dom";
 import { createTemplate, listTemplates, updateTemplate } from "../api/endpoints";
 import type { TemplateInput } from "../api/types";
@@ -108,6 +109,7 @@ export default function TemplateForm() {
           </select>
         </label>
         <button className="primary" type="submit" disabled={mutation.isPending}>
+          <LuSave />
           {mutation.isPending ? "Saving..." : "Save"}
         </button>
       </form>

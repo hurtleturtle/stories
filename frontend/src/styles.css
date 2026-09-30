@@ -206,7 +206,7 @@ a {
     color: var(--text);
     border-radius: 6px;
     padding: 0.4rem 0.65rem;
-    font-size: 1.1rem;
+    font-size: 0.95rem;
     line-height: 1;
     cursor: pointer;
   }
@@ -357,10 +357,35 @@ button.primary {
   width: fit-content;
 }
 
-button.with-icon {
+/* Every styled button pairs an icon with its label. */
+button.primary,
+button.secondary,
+.menu-toggle,
+.sidebar button.logout,
+.sidebar .theme-switch button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
+}
+
+button svg {
+  flex-shrink: 0;
+}
+
+/* The desktop sidebar is too narrow for three icon-and-label segments side by
+   side, so each stacks its icon over the label. */
+.sidebar .theme-switch button {
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+/* The full-width mobile menu has room to keep them on one line. */
+@media (max-width: 768px) {
+  .sidebar .theme-switch button {
+    flex-direction: row;
+    gap: 0.4rem;
+  }
 }
 
 button.primary:disabled {

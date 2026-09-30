@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LuDownload, LuPlus, LuTrash2 } from "react-icons/lu";
 import { Link } from "react-router-dom";
 import { deleteTemplate, importBuiltinTemplates, listTemplates } from "../api/endpoints";
 
@@ -25,6 +26,7 @@ export default function Templates() {
       <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
         <Link to="/templates/new">
           <button className="primary" type="button">
+            <LuPlus />
             New template
           </button>
         </Link>
@@ -33,6 +35,7 @@ export default function Templates() {
           onClick={() => importMutation.mutate()}
           disabled={importMutation.isPending}
         >
+          <LuDownload />
           Import built-in templates
         </button>
       </div>
@@ -60,6 +63,7 @@ export default function Templates() {
                   <td>{t.ebook_type}</td>
                   <td>
                     <button className="secondary" onClick={() => deleteMutation.mutate(t.id)}>
+                      <LuTrash2 />
                       Delete
                     </button>
                   </td>
