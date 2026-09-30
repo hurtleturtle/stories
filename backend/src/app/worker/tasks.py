@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 
 from app.db import get_sync_db
 from app.models import Artifact, EmailStatus, Job, JobStatus, UserSettings
@@ -53,12 +53,17 @@ def _claim_job(session, job_id: UUID, task_id: str | None) -> bool:
     """Move a pending job to running, atomically. False if it was not pending
     - cancelled while queued, or already claimed by another delivery of the
     same task (a redelivery after a broker visibility timeout, say)."""
-    now = datetime.now(UTC)
+    # The database's clock, like every heartbeat: the stale-job sweep compares
+    # heartbeat_at against the database's now(), so both sides must agree on
+    # the time whatever this worker's own clock says.
     claimed = session.execute(
         update(Job)
         .where(Job.id == job_id, Job.status == JobStatus.pending)
         .values(
-            status=JobStatus.running, started_at=now, heartbeat_at=now, celery_task_id=task_id
+            status=JobStatus.running,
+            started_at=func.now(),
+            heartbeat_at=func.now(),
+            celery_task_id=task_id,
         )
     )
     if claimed.rowcount == 1:
@@ -87,7 +92,7 @@ def _heartbeat(job_id: UUID) -> Iterator[None]:
                     session.execute(
                         update(Job)
                         .where(Job.id == job_id, Job.status == JobStatus.running)
-                        .values(heartbeat_at=datetime.now(UTC))
+                        .values(heartbeat_at=func.now())
                     )
                     session.commit()
             except Exception:  # noqa: BLE001 - keep beating through a database blip

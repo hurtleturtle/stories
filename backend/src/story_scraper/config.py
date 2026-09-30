@@ -104,7 +104,7 @@ class Settings(BaseSettings):
     # is failed; the API sweeps for such jobs every sweep_interval seconds.
     # stale_after must comfortably exceed the heartbeat interval.
     job_heartbeat_interval_seconds: float = 30
-    job_stale_after_seconds: float = 5 * 60
+    job_stale_after_seconds: float = 2 * 60
     stale_job_sweep_interval_seconds: float = 60
     # How long the broker waits for a task to finish before handing it to
     # another worker. Must exceed the longest scrape, or a long job runs twice.

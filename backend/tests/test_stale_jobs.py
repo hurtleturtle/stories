@@ -214,6 +214,67 @@ async def test_the_heartbeat_keeps_beating_while_the_job_is_busy(
     assert job.heartbeat_at - job.started_at > timedelta(seconds=0.2)
 
 
+def recorded_by_db_clock(job_id: str, column: str) -> bool:
+    """Is the column within the last minute, and not in the future, by the
+    database's own clock? Judged in SQL so no Python clock is involved."""
+    import uuid
+
+    from sqlalchemy import text
+
+    from app.db import get_sync_db
+
+    assert column in ("started_at", "heartbeat_at")
+    with get_sync_db() as session:
+        return session.execute(
+            text(
+                f"SELECT {column} > now() - interval '1 minute' AND {column} <= now() "
+                "FROM jobs WHERE id = :id"
+            ),
+            {"id": uuid.UUID(job_id)},
+        ).scalar_one()
+
+
+@pytest.mark.parametrize("skew", [timedelta(hours=-1), timedelta(hours=1)], ids=["behind", "ahead"])
+async def test_heartbeats_use_the_database_clock_not_the_workers(
+    auth_client, fake_pipeline, monkeypatch, skew
+):
+    """The sweep compares heartbeats with the database's now(). A worker whose
+    own clock is wrong must not look dead (clock behind) or immortal (ahead)."""
+    from app.worker import tasks
+    from app.worker.tasks import run_story_job
+
+    real_datetime = datetime
+
+    class SkewedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return real_datetime.now(tz) + skew
+
+    class SlowStory(tasks.Story):
+        def write(self, output_dir):
+            time.sleep(0.3)  # long enough for several beats
+            return super().write(output_dir)
+
+    monkeypatch.setattr(tasks, "datetime", SkewedDatetime)
+    monkeypatch.setattr(tasks, "Story", SlowStory)
+    monkeypatch.setattr(settings, "job_heartbeat_interval_seconds", 0.05)
+    body = await create_job(auth_client)
+
+    run_story_job(body["id"])
+
+    assert load_job(body["id"]).status.value == "success"
+    assert recorded_by_db_clock(body["id"], "started_at")
+    assert recorded_by_db_clock(body["id"], "heartbeat_at")
+
+
+def test_the_default_threshold_tolerates_several_missed_heartbeats():
+    fields = type(settings).model_fields
+    interval = fields["job_heartbeat_interval_seconds"].default
+    stale_after = fields["job_stale_after_seconds"].default
+
+    assert stale_after >= 3 * interval
+
+
 async def test_the_heartbeat_thread_stops_when_the_job_ends(
     auth_client, fake_pipeline, monkeypatch
 ):
