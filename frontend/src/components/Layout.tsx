@@ -1,14 +1,16 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import type { IconType } from "react-icons";
+import { LuLogOut, LuMenu, LuMonitor, LuMoon, LuSun, LuX } from "react-icons/lu";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { clearToken } from "../api/client";
 import { useMe } from "../hooks/useMe";
 import { type ThemePreference, useTheme } from "../hooks/useTheme";
 
-const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
-  { value: "system", label: "System" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
+const THEME_OPTIONS: { value: ThemePreference; label: string; icon: IconType }[] = [
+  { value: "system", label: "System", icon: LuMonitor },
+  { value: "light", label: "Light", icon: LuSun },
+  { value: "dark", label: "Dark", icon: LuMoon },
 ];
 
 export default function Layout() {
@@ -49,11 +51,11 @@ export default function Layout() {
         <strong>Story Scraper</strong>
         <button
           className="menu-toggle"
-          aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((v) => !v)}
         >
-          {menuOpen ? "✕" : "☰"}
+          {menuOpen ? <LuX /> : <LuMenu />}
+          {menuOpen ? "Close" : "Menu"}
         </button>
       </header>
 
@@ -85,11 +87,15 @@ export default function Layout() {
                 aria-pressed={theme === opt.value}
                 onClick={() => setTheme(opt.value)}
               >
+                <opt.icon />
                 {opt.label}
               </button>
             ))}
           </div>
-          <button onClick={logout}>Log out</button>
+          <button type="button" className="logout" onClick={logout}>
+            <LuLogOut />
+            Log out
+          </button>
         </div>
       </nav>
       <main className="content">

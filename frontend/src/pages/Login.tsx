@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { LuLogIn } from "react-icons/lu";
 import { Link, useNavigate } from "react-router-dom";
 import { getRegistrationOpen, login as loginRequest } from "../api/endpoints";
 import { setToken } from "../api/client";
@@ -49,6 +50,7 @@ export default function Login() {
         </label>
         {error && <span className="error">{error}</span>}
         <button className="primary" type="submit" disabled={loading}>
+          <LuLogIn />
           {loading ? "Logging in..." : "Log in"}
         </button>
       </form>

@@ -1,14 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { LuCircleX, LuDownload, LuRotateCcw, LuSend } from "react-icons/lu";
 import { useParams } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
 import {
-  artifactDownloadUrl,
   cancelJob,
+  downloadArtifact,
   getJob,
   retryJob,
   sendJobToKindle,
 } from "../api/endpoints";
-import type { EmailStatus } from "../api/types";
+import type { Artifact, EmailStatus } from "../api/types";
 
 const EMAIL_LABELS: Record<EmailStatus, string> = {
   not_sent: "Not sent",
@@ -24,6 +25,11 @@ const EMAIL_BADGES: Record<EmailStatus, string> = {
   sent: "badge-success",
   failed: "badge-failed",
 };
+
+function formatSize(bytes: number): string {
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${kb.toFixed(1)} KB` : `${(kb / 1024).toFixed(1)} MB`;
+}
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -51,6 +57,10 @@ export default function JobDetail() {
   const emailMutation = useMutation({
     mutationFn: (artifactId?: string) => sendJobToKindle(id!, artifactId),
     onSuccess: (updated) => queryClient.setQueryData(["jobs", id], updated),
+  });
+
+  const downloadMutation = useMutation({
+    mutationFn: (artifact: Artifact) => downloadArtifact(id!, artifact),
   });
 
   if (isLoading || !job) return <p>Loading...</p>;
@@ -109,6 +119,7 @@ export default function JobDetail() {
               onClick={() => emailMutation.mutate(undefined)}
               disabled={emailMutation.isPending}
             >
+              <LuSend />
               {emailMutation.isPending || queued ? "Sending..." : sendLabel}
             </button>
           </div>
@@ -138,26 +149,43 @@ export default function JobDetail() {
       {job.artifacts.length > 0 && (
         <div className="card">
           <strong>Artifacts</strong>
+          {downloadMutation.isError && (
+            <p className="error">Could not download the file. Try again in a moment.</p>
+          )}
           <div className="table-wrap">
             <table>
               <tbody>
                 {job.artifacts.map((artifact) => (
-                  <tr key={artifact.id}>
-                    <td>{artifact.filename}</td>
-                    <td>{(artifact.size_bytes / 1024).toFixed(1)} KB</td>
-                    <td>
-                      <a href={artifactDownloadUrl(job.id, artifact.id)}>Download</a>
+                  <tr key={artifact.id} className="artifact-row">
+                    <td className="artifact-name">
+                      {artifact.filename}
+                      {/* On phones the size moves under the name to save a column. */}
+                      <div className="show-sm muted">{formatSize(artifact.size_bytes)}</div>
                     </td>
+                    <td className="hide-sm artifact-size">{formatSize(artifact.size_bytes)}</td>
                     <td>
-                      {completed && artifact.kind !== "html" && (
+                      <div className="artifact-actions">
                         <button
                           className="secondary"
-                          onClick={() => emailMutation.mutate(artifact.id)}
-                          disabled={emailMutation.isPending}
+                          onClick={() => downloadMutation.mutate(artifact)}
+                          disabled={downloadMutation.isPending}
                         >
-                          Send this
+                          <LuDownload />
+                          {downloadMutation.isPending && downloadMutation.variables?.id === artifact.id
+                            ? "Downloading..."
+                            : "Download"}
                         </button>
-                      )}
+                        {completed && artifact.kind !== "html" && (
+                          <button
+                            className="secondary"
+                            onClick={() => emailMutation.mutate(artifact.id)}
+                            disabled={emailMutation.isPending}
+                          >
+                            <LuSend />
+                            Send this
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -169,12 +197,14 @@ export default function JobDetail() {
 
       <div style={{ display: "flex", gap: "0.5rem" }}>
         {job.status === "pending" && (
-          <button className="secondary" onClick={() => cancelMutation.mutate()}>
+          <button className="secondary danger" onClick={() => cancelMutation.mutate()}>
+            <LuCircleX />
             Cancel
           </button>
         )}
         {(job.status === "failed" || job.status === "cancelled") && (
           <button className="secondary" onClick={() => retryMutation.mutate()}>
+            <LuRotateCcw />
             Retry
           </button>
         )}

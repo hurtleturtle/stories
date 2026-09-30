@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { LuUserPlus } from "react-icons/lu";
 import { Link, useNavigate } from "react-router-dom";
 import {
   getRegistrationOpen,
@@ -67,6 +68,7 @@ export default function Register() {
         </label>
         {error && <span className="error">{error}</span>}
         <button className="primary" type="submit" disabled={loading}>
+          <LuUserPlus />
           {loading ? "Creating account..." : "Register"}
         </button>
       </form>

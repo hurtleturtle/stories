@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { LuPencil, LuSave, LuTrash2, LuX } from "react-icons/lu";
 import { apiErrorMessage } from "../api/client";
 import {
   deleteUser,
@@ -173,14 +174,16 @@ export default function AdminUsers() {
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       <button className="secondary" onClick={() => setEditing(u.id)}>
+                        <LuPencil />
                         Edit
                       </button>{" "}
                       {u.id !== me?.id && (
                         <button
-                          className="secondary"
+                          className="secondary danger"
                           onClick={() => onDelete(u)}
                           disabled={deleteMutation.isPending}
                         >
+                          <LuTrash2 />
                           Delete
                         </button>
                       )}
@@ -238,9 +241,11 @@ function EditRow({
           </label>
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button className="primary" type="submit" disabled={saving}>
+              <LuSave />
               {saving ? "Saving..." : "Save"}
             </button>
             <button className="secondary" type="button" onClick={onCancel}>
+              <LuX />
               Cancel
             </button>
           </div>

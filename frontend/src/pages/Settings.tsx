@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { LuSave } from "react-icons/lu";
 import { apiErrorMessage } from "../api/client";
 import { getSettings, updateSettings } from "../api/endpoints";
 
@@ -117,6 +118,7 @@ export default function Settings() {
         )}
         {mutation.isSuccess && !mutation.isPending && <span className="muted">Saved.</span>}
         <button className="primary" type="submit" disabled={mutation.isPending}>
+          <LuSave />
           {mutation.isPending ? "Saving..." : "Save"}
         </button>
       </form>
