@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.6.0](https://github.com/hurtleturtle/stories/compare/v0.5.0...v0.6.0) (2026-09-30)
+
+
+### Features
+
+* **frontend:** give every button an icon alongside its label ([d657e85](https://github.com/hurtleturtle/stories/commit/d657e85a60d040a11308c73fe52e6038b59533a6))
+* **frontend:** lilac-tinted secondary buttons, soft red for destructive ones ([ad420ba](https://github.com/hurtleturtle/stories/commit/ad420badc70a8bb086125404d2dc40c11a105112))
+
+
+### Bug Fixes
+
+* duplicate template names return 409 instead of a server error ([234835d](https://github.com/hurtleturtle/stories/commit/234835d07b5c65fb47d907a0fc6f6b5814f6bf1a))
+* **frontend:** fit the job artifacts table on phones ([fb2fa17](https://github.com/hurtleturtle/stories/commit/fb2fa17f98c374f2506abca8950d35bd8e5f8ae0))
+* **frontend:** let the phone-size styles actually apply ([f74999d](https://github.com/hurtleturtle/stories/commit/f74999d3243df123a6bf16de0056463240008cfb))
+* **frontend:** make artifact downloads work, and tidy the templates pages ([23e4807](https://github.com/hurtleturtle/stories/commit/23e48074457f51fdd6ab01367398f9ca1a65ed25))
+* **frontend:** make Log out look like a button ([e9a74c7](https://github.com/hurtleturtle/stories/commit/e9a74c706f039e4a64ea8754a0734ae46c5898c9))
+* **frontend:** put the mobile menu's theme switch and Log out under the links ([dda1e61](https://github.com/hurtleturtle/stories/commit/dda1e61afd4b5fd0f461b5f458845b582762228f))
+
 ## [0.5.0](https://github.com/hurtleturtle/stories/compare/v0.4.0...v0.5.0) (2026-09-27)
 
 
