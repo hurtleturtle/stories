@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LuCircleX, LuDownload, LuRotateCcw, LuSend } from "react-icons/lu";
+import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { apiErrorMessage } from "../api/client";
 import {
   cancelJob,
   downloadArtifact,
   getJob,
+  listTemplates,
   retryJob,
   sendJobToKindle,
 } from "../api/endpoints";
@@ -52,7 +54,22 @@ export default function JobDetail() {
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["jobs", id] });
 
-  const retryMutation = useMutation({ mutationFn: () => retryJob(id!), onSuccess: invalidate });
+  const retryable = job?.status === "failed" || job?.status === "cancelled";
+  const { data: templates } = useQuery({
+    queryKey: ["templates"],
+    queryFn: listTemplates,
+    enabled: retryable,
+  });
+  // "" retries the job as it is; a template id swaps the job onto it first.
+  const [retryTemplateId, setRetryTemplateId] = useState("");
+
+  const retryMutation = useMutation({
+    mutationFn: () => retryJob(id!, retryTemplateId || undefined),
+    onSuccess: () => {
+      setRetryTemplateId("");
+      return invalidate();
+    },
+  });
   const cancelMutation = useMutation({ mutationFn: () => cancelJob(id!), onSuccess: invalidate });
   const emailMutation = useMutation({
     mutationFn: (artifactId?: string) => sendJobToKindle(id!, artifactId),
@@ -66,6 +83,10 @@ export default function JobDetail() {
   if (isLoading || !job) return <p>Loading...</p>;
 
   const completed = job.status === "success";
+  // The worker stores what went wrong in plain words first, then a blank
+  // line and the technical detail (the exception, or a traceback).
+  const [errorSummary, ...errorRest] = (job.error ?? "").split("\n\n");
+  const errorDetail = errorRest.join("\n\n").trim();
   // Only the in-flight request disables the button. A job stuck on "pending"
   // (worker down, task lost) must stay re-sendable rather than dead-ending.
   const queued = job.email_status === "pending";
@@ -135,7 +156,13 @@ export default function JobDetail() {
       {job.error && (
         <div className="card">
           <strong>Error</strong>
-          <pre className="log">{job.error}</pre>
+          <p className="error-summary">{errorSummary}</p>
+          {errorDetail && (
+            <details>
+              <summary className="muted">Technical details</summary>
+              <pre className="log">{errorDetail}</pre>
+            </details>
+          )}
         </div>
       )}
 
@@ -202,13 +229,52 @@ export default function JobDetail() {
             Cancel
           </button>
         )}
-        {(job.status === "failed" || job.status === "cancelled") && (
-          <button className="secondary" onClick={() => retryMutation.mutate()}>
-            <LuRotateCcw />
-            Retry
-          </button>
-        )}
       </div>
+
+      {retryable && (
+        <div className="card">
+          <strong>Retry</strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: 480, marginTop: "0.5rem" }}>
+            <label>
+              Template
+              <select
+                value={retryTemplateId}
+                onChange={(e) => setRetryTemplateId(e.target.value)}
+                disabled={retryMutation.isPending}
+              >
+                <option value="">Keep this job's current settings</option>
+                {templates?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.id === job.template_id ? " (current - reload its settings)" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted">
+              {retryTemplateId
+                ? "The template's selectors, style and format replace this job's. " +
+                  "If the selectors differ, the story is scraped again from the first chapter."
+                : "Carries on from the chapters already scraped."}
+            </p>
+            {retryMutation.isError && (
+              <p className="error">
+                {apiErrorMessage(retryMutation.error, "Could not retry the job.")}
+              </p>
+            )}
+            <div>
+              <button
+                className="secondary"
+                onClick={() => retryMutation.mutate()}
+                disabled={retryMutation.isPending}
+              >
+                <LuRotateCcw />
+                {retryTemplateId ? "Swap template and retry" : "Retry"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

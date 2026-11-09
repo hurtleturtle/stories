@@ -143,6 +143,13 @@ class JobCreate(BaseModel):
     send_email: bool = False
 
 
+class JobRetry(BaseModel):
+    """Options for retrying a job. Naming a template swaps the job onto it:
+    its selectors, stylesheet, scripts and format replace the job's own."""
+
+    template_id: UUID | None = None
+
+
 class ArtifactOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -163,6 +170,7 @@ class JobOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    template_id: UUID | None
     url: str
     title: str
     status: JobStatus

@@ -238,3 +238,117 @@ async def test_a_cancelled_running_job_keeps_its_chapters_and_a_retry_resumes(au
     assert "Resuming after chapter 2." in job.log.splitlines()
     assert scraper.converted[-1].count('class="chp"') == 3
     assert not scraper.chapters_dir.exists()
+
+
+@respx.mock
+async def test_retrying_with_another_template_reads_the_story_the_new_way(auth_client, scraper):
+    """The use this exists for: the job was created with selectors that do not
+    fit the site, so it is swapped onto a template that does and retried."""
+    from app.worker.tasks import run_story_job
+
+    routes = mount(c1=page("<p>One.</p>", "c2"), c2=page("<p>Two.</p>"))
+    resp = await auth_client.post(
+        "/api/jobs", json={**JOB, "container": "div#wrong p", "title": "My Book"}
+    )
+    job_id = resp.json()["id"]
+
+    run_story_job(job_id)
+
+    assert load_job(job_id).status.value == "failed"
+
+    template = (
+        await auth_client.post(
+            "/api/templates",
+            json={
+                "name": "fits",
+                "container": "div.chapter-content",
+                "next_selector": "a#next_chap",
+            },
+        )
+    ).json()
+    resp = await auth_client.post(
+        f"/api/jobs/{job_id}/retry", json={"template_id": template["id"]}
+    )
+    assert resp.status_code == 200, resp.text
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    assert job.status.value == "success", job.error
+    assert job.template_id is not None and str(job.template_id) == template["id"]
+    assert job.chapters_scraped == 2
+    assert "Resuming" not in job.log  # nothing read the old way is reused
+    assert routes["c1"].call_count == 2  # once each way
+    assert scraper.converted[-1].count('class="chp"') == 2
+    assert "One." in scraper.converted[-1] and "Two." in scraper.converted[-1]
+    assert job.title == "My Book"
+
+
+# --- failures are explained ----------------------------------------------------
+
+
+@respx.mock
+async def test_a_job_refused_by_a_bot_check_says_so(auth_client, scraper):
+    from app.worker.tasks import run_story_job
+
+    respx.get(BASE + "c1").mock(
+        return_value=httpx.Response(403, headers={"cf-mitigated": "challenge"})
+    )
+    job_id = await new_job(auth_client)
+
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    assert job.status.value == "failed"
+    summary, detail = job.error.split("\n\n", 1)
+    assert summary.startswith("example.com is behind a bot check (403 Forbidden)")
+    assert detail.startswith("HTTPStatusError:") and BASE + "c1" in detail
+    assert "Traceback" not in job.error  # nothing a traceback would add
+
+
+@respx.mock
+async def test_a_job_refused_partway_through_says_a_retry_will_resume(auth_client, scraper):
+    from app.worker.tasks import run_story_job
+
+    mount(c1=page("<p>One.</p>", "c2"))
+    respx.get(BASE + "c2").mock(return_value=httpx.Response(403))
+    job_id = await new_job(auth_client)
+
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    summary = job.error.split("\n\n", 1)[0]
+    assert "example.com answered 403 Forbidden: the site refused the request" in summary
+    assert summary.endswith("Retrying carries on from the chapters already scraped.")
+    assert job.chapters_scraped == 1
+
+
+@respx.mock
+async def test_a_job_whose_selectors_match_nothing_points_at_the_template(auth_client, scraper):
+    from app.worker.tasks import run_story_job
+
+    mount(c1=page("<p>One.</p>"))
+    resp = await auth_client.post("/api/jobs", json={**JOB, "container": "div#wrong p"})
+    job_id = resp.json()["id"]
+
+    run_story_job(job_id)
+
+    job = load_job(job_id)
+    assert job.status.value == "failed"
+    assert "Retry with a different template" in job.error.split("\n\n", 1)[0]
+
+
+async def test_an_unexpected_failure_keeps_its_traceback(auth_client, scraper, monkeypatch):
+    from app.worker import tasks
+
+    class Boom:
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("something unforeseen")
+
+    monkeypatch.setattr(tasks, "Story", Boom)
+    job_id = await new_job(auth_client)
+
+    tasks.run_story_job(job_id)
+
+    summary, detail = load_job(job_id).error.split("\n\n", 1)
+    assert summary == "something unforeseen"
+    assert detail.startswith("Traceback")

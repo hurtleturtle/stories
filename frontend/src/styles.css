@@ -371,6 +371,16 @@ td {
   font-size: 0.9rem;
 }
 
+.error-summary {
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+details > summary {
+  cursor: pointer;
+}
+
 .muted {
   color: var(--muted);
   font-size: 0.85rem;

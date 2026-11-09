@@ -22,6 +22,7 @@ from app.services.storage import job_dir, resolve_stored_path, stored_path
 from app.worker.celery_app import celery_app
 from story_scraper.config import StoryConfig, settings
 from story_scraper.converter import convert
+from story_scraper.errors import describe_failure, failure_report
 from story_scraper.mailer import send_ebook
 from story_scraper.scraper import Story
 
@@ -282,12 +283,20 @@ def _run_claimed_job(session, job_id: str, task_id: str | None = None) -> None:
         session.rollback()
         if log:
             log.flush()  # keep the progress made before the failure
+        # A failure the scraper can explain is told in those terms, with the
+        # exception itself as the detail; a traceback would add nothing to
+        # "the site answered 403". Anything else keeps its traceback.
+        explained = describe_failure(exc) is not None
+        technical = f"{type(exc).__name__}: {exc}" if explained else traceback.format_exc()
+        chapters_done = session.execute(
+            select(Job.chapters_scraped).where(Job.id == job_uuid)
+        ).scalar_one_or_none()
         _finish(
             session,
             job_uuid,
             task_id,
             JobStatus.failed,
-            error=f"{exc}\n\n{traceback.format_exc()}",
+            error=failure_report(exc, technical, chapters_done or 0),
         )
     finally:
         session.execute(update(Job).where(_owns(job_uuid, task_id)).values(finished_at=func.now()))
