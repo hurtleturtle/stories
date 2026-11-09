@@ -95,6 +95,13 @@ however long the story is and nothing is lost if the worker dies.
   scraped so far are kept, and Retry carries on from them. A run replaced by a retry, or
   whose job was deleted, stops too, and only a run that still finds its job `running` can
   mark it finished, so a cancelled job is never turned back into a success.
+- **Failures are explained.** A failed job's error starts with what happened in plain words
+  and what to do about it: the site refused the request (403), sits behind a bot check
+  such as Cloudflare's, wants a login, is rate limiting or is down; the page does not
+  exist; the connection failed or timed out; or the template's selectors matched nothing.
+  The exception itself is kept underneath as technical detail. Rate limiting, server
+  errors and network failures are tried three times first; a 403 is not, since asking
+  again does not change it. The CLI prints the same explanation instead of a traceback.
 - **Limits.** One scrape is capped at `MAX_CHAPTERS` chapters and `MAX_SCRAPE_SECONDS`, and a
   page at `MAX_PAGE_BYTES` (decompressed). Reaching the first two ends the story with a note
   in the job log, and raising the limit and retrying carries on. `0` turns a limit off.

@@ -83,6 +83,10 @@ export default function JobDetail() {
   if (isLoading || !job) return <p>Loading...</p>;
 
   const completed = job.status === "success";
+  // The worker stores what went wrong in plain words first, then a blank
+  // line and the technical detail (the exception, or a traceback).
+  const [errorSummary, ...errorRest] = (job.error ?? "").split("\n\n");
+  const errorDetail = errorRest.join("\n\n").trim();
   // Only the in-flight request disables the button. A job stuck on "pending"
   // (worker down, task lost) must stay re-sendable rather than dead-ending.
   const queued = job.email_status === "pending";
@@ -152,7 +156,13 @@ export default function JobDetail() {
       {job.error && (
         <div className="card">
           <strong>Error</strong>
-          <pre className="log">{job.error}</pre>
+          <p className="error-summary">{errorSummary}</p>
+          {errorDetail && (
+            <details>
+              <summary className="muted">Technical details</summary>
+              <pre className="log">{errorDetail}</pre>
+            </details>
+          )}
         </div>
       )}
 

@@ -8,6 +8,7 @@ from pathlib import Path
 
 from story_scraper.config import Settings
 from story_scraper.converter import convert
+from story_scraper.errors import describe_failure
 from story_scraper.mailer import SmtpConfig, send_ebook
 from story_scraper.resolve import resolve_config
 from story_scraper.scraper import Story
@@ -72,25 +73,33 @@ def main(argv: list[str] | None = None) -> None:
     ebook_name = f"{config.resolved_filename()}.{config.ebook_type}"
     ebook_file = output_dir / config.ebook_type / ebook_name
 
-    # Running locally, so scraping a private-network address is the user's call.
-    with Story(
-        config,
-        progress=lambda n, u: logging.info("Chapter %d: %s", n, u),
-        allow_private_hosts=True,
-    ) as story:
-        if not args.no_download:
-            html_file = story.write(output_dir / "html")
-        else:
-            html_file = output_dir / "html" / f"{config.resolved_filename()}.html"
+    try:
+        # Running locally, so scraping a private-network address is the user's call.
+        with Story(
+            config,
+            progress=lambda n, u: logging.info("Chapter %d: %s", n, u),
+            allow_private_hosts=True,
+        ) as story:
+            if not args.no_download:
+                html_file = story.write(output_dir / "html")
+            else:
+                html_file = output_dir / "html" / f"{config.resolved_filename()}.html"
 
-    if not args.no_convert:
-        convert(
-            html_file,
-            ebook_file,
-            config.title,
-            authors=config.author,
-            language=config.language,
-        )
+        if not args.no_convert:
+            convert(
+                html_file,
+                ebook_file,
+                config.title,
+                authors=config.author,
+                language=config.language,
+            )
+    except Exception as exc:
+        explanation = describe_failure(exc)
+        if explanation is None:
+            raise
+        # A known kind of failure (the site refused, is down, the selectors
+        # do not match): say so plainly instead of ending in a traceback.
+        raise SystemExit(f"{explanation}\n\n{type(exc).__name__}: {exc}") from exc
 
     if not args.no_email:
         if not (settings.email_from and settings.email_to and settings.email_password):
