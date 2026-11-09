@@ -22,19 +22,36 @@ STALE_JOB_ERROR = (
 )
 
 
+# What a template decides about a job. Everything else in a job's config
+# (title, author, chapter limit...) belongs to the job itself.
+TEMPLATE_FIELDS = ("container", "next_selector", "detect_title", "style", "scripts", "ebook_type")
+
+
 def build_job_config(url: str, template: Template | None, overrides: dict) -> StoryConfig:
     template_dict = {}
     if template is not None:
-        template_dict = {
-            "container": template.container,
-            "next_selector": template.next_selector,
-            "detect_title": template.detect_title,
-            "style": template.style,
-            "scripts": template.scripts,
-            "ebook_type": template.ebook_type,
-        }
+        template_dict = {field: getattr(template, field) for field in TEMPLATE_FIELDS}
 
     return resolve_config(url, template_dict, overrides)
+
+
+def swap_job_template(job: Job, template: Template) -> None:
+    """Point a job at `template`, as it is now: the template's selectors,
+    stylesheet, scripts and format replace the job's, including any the job
+    was created with as overrides. The rest of its config is kept.
+
+    Raises pydantic.ValidationError, leaving the job untouched, if the
+    template holds a value that is not accepted any more."""
+    # Not part of StoryConfig, so carried across by hand.
+    send_email = job.config.get("send_email", False)
+    kept = {
+        key: value
+        for key, value in job.config.items()
+        if key in StoryConfig.model_fields and key not in TEMPLATE_FIELDS and key != "url"
+    }
+    config = build_job_config(job.url, template, kept)
+    job.config = {**config.model_dump(), "send_email": send_email}
+    job.template_id = template.id
 
 
 async def fail_stale_jobs(db: AsyncSession) -> int:

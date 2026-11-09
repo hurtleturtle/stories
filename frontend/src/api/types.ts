@@ -37,6 +37,7 @@ export interface Artifact {
 
 export interface Job {
   id: string;
+  template_id: string | null;
   url: string;
   title: string;
   status: JobStatus;

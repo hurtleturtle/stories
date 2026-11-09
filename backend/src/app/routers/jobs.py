@@ -13,9 +13,9 @@ from sqlalchemy.orm import selectinload
 from app.db import get_db
 from app.deps import current_user
 from app.models import EmailStatus, Job, JobStatus, Template, User, UserSettings
-from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut
+from app.schemas import JobCreate, JobEmailRequest, JobList, JobOut, JobRetry
 from app.services.email import missing_smtp_fields, pick_sendable_artifact
-from app.services.jobs import build_job_config
+from app.services.jobs import build_job_config, swap_job_template
 from app.services.storage import remove_job_files, resolve_stored_path
 from app.worker.celery_app import celery_app
 from story_scraper.urlsafety import UnsafeURLError, assert_public_url
@@ -35,6 +35,27 @@ async def _get_owned_job(db: AsyncSession, user: User, job_id: UUID) -> Job:
     return job
 
 
+async def _get_owned_template(db: AsyncSession, user: User, template_id: UUID) -> Template:
+    template = await db.get(Template, template_id)
+    if template is None or template.owner_id != user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
+    return template
+
+
+def _invalid_config(exc: ValidationError, template: Template | None) -> HTTPException:
+    """The 422 for a config that would not build. The request itself was
+    validated already, so this is a value stored on the template that is not
+    accepted any more (a stylesheet that was removed, a format that was dropped)."""
+    problems = "; ".join(
+        f"{'.'.join(str(part) for part in error['loc'])}: "
+        f"{error['msg'].removeprefix('Value error, ')}"
+        for error in exc.errors()
+    )
+    name = f"Template {template.name!r}" if template else "This job"
+    detail = f"{name} has settings that are not valid: {problems}"
+    return HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail)
+
+
 @router.post("", response_model=JobOut, status_code=status.HTTP_201_CREATED)
 async def create_job(
     data: JobCreate, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
@@ -47,25 +68,13 @@ async def create_job(
 
     template = None
     if data.template_id is not None:
-        template = await db.get(Template, data.template_id)
-        if template is None or template.owner_id != user.id:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Template not found")
+        template = await _get_owned_template(db, user, data.template_id)
 
     overrides = data.model_dump(exclude={"url", "template_id", "send_email"})
     try:
         config = build_job_config(data.url, template, overrides)
     except ValidationError as exc:
-        # The request itself was validated already, so this is a value stored on
-        # the template that is not accepted any more (a stylesheet that was
-        # removed, a format that was dropped).
-        problems = "; ".join(
-            f"{'.'.join(str(part) for part in error['loc'])}: "
-            f"{error['msg'].removeprefix('Value error, ')}"
-            for error in exc.errors()
-        )
-        name = f"Template {template.name!r}" if template else "This job"
-        detail = f"{name} has settings that are not valid: {problems}"
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail) from exc
+        raise _invalid_config(exc, template) from exc
 
     # Chosen up front so the id is on the job from the moment it can be
     # cancelled, rather than only once a worker picks it up.
@@ -121,13 +130,30 @@ async def get_job(
 
 @router.post("/{job_id}/retry", response_model=JobOut)
 async def retry_job(
-    job_id: UUID, db: AsyncSession = Depends(get_db), user: User = Depends(current_user)
+    job_id: UUID,
+    body: JobRetry = Body(default_factory=JobRetry),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> Job:
+    """Run a failed or cancelled job again.
+
+    With no body the job runs exactly as before and carries on from the
+    chapters it already has. Naming a template swaps the job onto it first -
+    naming the job's current template re-reads it, picking up edits made since
+    the job was created. If that changes how chapters are read, the worker
+    discards the stored ones and starts from the first chapter."""
     job = await _get_owned_job(db, user, job_id)
     if job.status not in (JobStatus.failed, JobStatus.cancelled):
         raise HTTPException(
             status.HTTP_409_CONFLICT, "Only failed or cancelled jobs can be retried"
         )
+
+    if body.template_id is not None:
+        template = await _get_owned_template(db, user, body.template_id)
+        try:
+            swap_job_template(job, template)
+        except ValidationError as exc:
+            raise _invalid_config(exc, template) from exc
 
     task_id = str(uuid4())
     job.status = JobStatus.pending

@@ -232,6 +232,145 @@ async def test_retry_dispatches_under_a_fresh_task_id(auth_client, queued_tasks)
     assert load_job(body["id"]).celery_task_id == retry_task_id
 
 
+# --- retrying with another template ----------------------------------------
+
+OLD_TEMPLATE = {"name": "old", "container": "div.old p", "next_selector": "a.old-next"}
+NEW_TEMPLATE = {
+    "name": "new",
+    "container": "div#chapter-content p",
+    "next_selector": "a#next_chap",
+    "detect_title": "a.chapter-title",
+    "ebook_type": "azw3",
+}
+
+
+async def make_template(auth_client, template: dict) -> dict:
+    resp = await auth_client.post("/api/templates", json=template)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
+
+async def failed_job(auth_client, **fields) -> dict:
+    resp = await auth_client.post(
+        "/api/jobs", json={"url": "https://example.com/chapter-1", **fields}
+    )
+    assert resp.status_code == 201, resp.text
+    set_status(resp.json()["id"], "failed")
+    return resp.json()
+
+
+async def test_retry_can_swap_the_job_onto_another_template(auth_client, queued_tasks):
+    old = await make_template(auth_client, OLD_TEMPLATE)
+    new = await make_template(auth_client, NEW_TEMPLATE)
+    body = await failed_job(
+        auth_client,
+        template_id=old["id"],
+        title="My Book",
+        author="An Author",
+        num_chapters=5,
+        send_email=True,
+    )
+    assert body["template_id"] == old["id"]
+
+    resp = await auth_client.post(
+        f"/api/jobs/{body['id']}/retry", json={"template_id": new["id"]}
+    )
+
+    assert resp.status_code == 200, resp.text
+    retried = resp.json()
+    assert retried["status"] == "pending"
+    assert retried["template_id"] == new["id"]
+    config = retried["config"]
+    assert config["container"] == "div#chapter-content p"
+    assert config["next_selector"] == "a#next_chap"
+    assert config["detect_title"] == "a.chapter-title"
+    assert config["ebook_type"] == "azw3"
+    # What belongs to the job rather than the template is kept.
+    assert config["url"] == "https://example.com/chapter-1"
+    kept = (config["title"], config["author"], config["num_chapters"])
+    assert kept == ("My Book", "An Author", 5)
+    assert config["send_email"] is True
+    assert queued_tasks[-1] == (RUN_TASK, [body["id"]])
+
+
+async def test_swapping_templates_drops_the_selectors_the_job_was_created_with(auth_client):
+    """They were the old way of reading the site; the new template replaces
+    them even where it leaves a setting blank."""
+    new = await make_template(auth_client, OLD_TEMPLATE)
+    body = await failed_job(auth_client, container="div.mine p", detect_title="h1.mine")
+
+    resp = await auth_client.post(
+        f"/api/jobs/{body['id']}/retry", json={"template_id": new["id"]}
+    )
+
+    config = resp.json()["config"]
+    assert config["container"] == "div.old p"
+    assert config["detect_title"] is None
+
+
+async def test_retrying_with_the_jobs_own_template_picks_up_edits_to_it(auth_client):
+    template = await make_template(auth_client, OLD_TEMPLATE)
+    body = await failed_job(auth_client, template_id=template["id"])
+    await auth_client.put(f"/api/templates/{template['id']}", json={"container": "div.fixed p"})
+
+    plain = await auth_client.post(f"/api/jobs/{body['id']}/retry")
+    assert plain.json()["config"]["container"] == "div.old p"  # a plain retry changes nothing
+
+    set_status(body["id"], "failed")
+    resp = await auth_client.post(
+        f"/api/jobs/{body['id']}/retry", json={"template_id": template["id"]}
+    )
+
+    assert resp.json()["config"]["container"] == "div.fixed p"
+
+
+async def test_retry_refuses_a_template_that_is_missing_or_someone_elses(
+    auth_client, client, queued_tasks
+):
+    body = await failed_job(auth_client)
+    dispatched = len(queued_tasks)
+    mine = client.headers.pop("Authorization")
+    await client.post(
+        "/api/auth/register", json={"email": "other@example.com", "password": "pw12345"}
+    )
+    token = (
+        await client.post(
+            "/api/auth/login", data={"username": "other@example.com", "password": "pw12345"}
+        )
+    ).json()["access_token"]
+    theirs = (
+        await client.post(
+            "/api/templates", json=NEW_TEMPLATE, headers={"Authorization": f"Bearer {token}"}
+        )
+    ).json()
+    client.headers["Authorization"] = mine
+
+    for template_id in (theirs["id"], str(uuid.uuid4())):
+        resp = await auth_client.post(
+            f"/api/jobs/{body['id']}/retry", json={"template_id": template_id}
+        )
+        assert resp.status_code == 404, resp.text
+
+    job = load_job(body["id"])
+    assert job.status.value == "failed"
+    assert job.template_id is None
+    assert len(queued_tasks) == dispatched
+
+
+async def test_a_job_that_cannot_be_retried_is_not_swapped_either(auth_client):
+    new = await make_template(auth_client, NEW_TEMPLATE)
+    body = await create_job(auth_client)  # still pending
+
+    resp = await auth_client.post(
+        f"/api/jobs/{body['id']}/retry", json={"template_id": new["id"]}
+    )
+
+    assert resp.status_code == 409
+    job = load_job(body["id"])
+    assert job.template_id is None
+    assert job.config["container"] == "div.chapter-content"
+
+
 # --- the worker ------------------------------------------------------------
 
 

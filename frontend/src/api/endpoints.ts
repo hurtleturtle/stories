@@ -122,8 +122,13 @@ export async function createJob(input: JobCreateInput): Promise<Job> {
   return data;
 }
 
-export async function retryJob(id: string): Promise<Job> {
-  const { data } = await api.post(`/jobs/${id}/retry`);
+/** Retry a failed or cancelled job. Naming a template swaps the job onto it
+ * first (its selectors, style and format replace the job's); omit it to run
+ * the job again exactly as it was. */
+export async function retryJob(id: string, templateId?: string): Promise<Job> {
+  const { data } = await api.post(`/jobs/${id}/retry`, {
+    template_id: templateId ?? null,
+  });
   return data;
 }
 

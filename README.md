@@ -73,6 +73,13 @@ however long the story is and nothing is lost if the worker dies.
   are for the same story read the same way; change the URL or selectors and it starts
   afresh. A finished story is not re-fetched, so a retry will not pick up chapters
   published since.
+- **Retrying with another template.** A failed or cancelled job's page offers a template
+  to retry with, for when the job was started with selectors that do not fit the site.
+  The chosen template's selectors, stylesheet, scripts and format replace the job's
+  (including any it was created with as overrides); its URL, title, author, language and
+  chapter limit are kept. Choosing the job's current template reloads it, picking up edits
+  made since the job was created - a plain retry keeps running the settings the job was
+  created with. Over the API: `POST /api/jobs/{id}/retry` with `{"template_id": "..."}`.
 - **The story ends** when the next link runs out, `num_chapters` is reached, or the next
   page is a 404/410, has no chapter content, was already fetched, or has **the same text
   as an earlier chapter**. That last check hashes each chapter's text (and which pictures
