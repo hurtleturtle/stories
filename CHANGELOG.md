@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.0](https://github.com/hurtleturtle/stories/compare/v0.7.0...v0.8.0) (2026-11-09)
+
+
+### Features
+
+* explain 403s and other HTTP errors when a job fails ([1d420d0](https://github.com/hurtleturtle/stories/commit/1d420d0aaeae35f4d70eecb2d156e22d01631fa0))
+* swap a job's template when retrying it ([8e5443b](https://github.com/hurtleturtle/stories/commit/8e5443bf831b50e73374b7958111330bd33aa71b))
+
 ## [0.7.0](https://github.com/hurtleturtle/stories/compare/v0.6.0...v0.7.0) (2026-09-30)
 
 
